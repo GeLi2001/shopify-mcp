@@ -1,0 +1,33 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - accessToken
+      - domain
+    properties:
+      accessToken:
+        type: string
+        default: ""
+        description: Shopify Admin API access token
+      domain:
+        type: string
+        default: ""
+        description: Shopify domain (e.g., your-store.myshopify.com)
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: {
+        SHOPIFY_ACCESS_TOKEN: config.accessToken,
+        MYSHOPIFY_DOMAIN: config.domain
+      }
+    })
+  exampleConfig:
+    accessToken: dummy_access_token
+    domain: dummy-store.myshopify.com
