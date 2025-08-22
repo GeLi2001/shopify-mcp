@@ -1,6 +1,7 @@
 # Shopify MCP Server
 
 (please leave a star if you like!)
+[![smithery badge](https://smithery.ai/badge/@GeLi2001/shopify-mcp)](https://smithery.ai/server/@GeLi2001/shopify-mcp)
 
 MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
 
@@ -25,6 +26,14 @@ MCP Server for Shopify API, enabling interaction with store data through GraphQL
 2. Shopify Custom App Access Token (see setup instructions below)
 
 ## Setup
+
+### Installing via Smithery
+
+To install Shopify MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@GeLi2001/shopify-mcp):
+
+```bash
+npx -y @smithery/cli install @GeLi2001/shopify-mcp --client claude
+```
 
 ### Shopify Access Token
 
