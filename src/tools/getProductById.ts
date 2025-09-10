@@ -1,170 +1,92 @@
-import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
-import { z } from "zod";
+/**
+ * Get Product By ID Tool - Retrieve a specific product by ID
+ * Following enterprise patterns from servicenow-mcp
+ */
 
-// Input schema for getProductById
-const GetProductByIdInputSchema = z.object({
-  productId: z.string().min(1)
+import { z } from 'zod';
+import { BaseTool } from './baseTool.js';
+
+const GetProductByIdSchema = z.object({
+  id: z.string().min(1, 'Product ID is required'),
 });
 
-type GetProductByIdInput = z.infer<typeof GetProductByIdInputSchema>;
+type GetProductByIdArgs = z.infer<typeof GetProductByIdSchema>;
 
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+export class GetProductByIdTool extends BaseTool {
+  get name(): string {
+    return 'get-product-by-id';
+  }
 
-const getProductById = {
-  name: "get-product-by-id",
-  description: "Get a specific product by ID",
-  schema: GetProductByIdInputSchema,
+  get description(): string {
+    return 'Retrieve a specific product by its ID from the Shopify store';
+  }
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
+  get inputSchema() {
+    return GetProductByIdSchema;
+  }
 
-  execute: async (input: GetProductByIdInput) => {
-    try {
-      const { productId } = input;
+  protected async executeImpl(args: GetProductByIdArgs): Promise<any> {
+    const { id } = args;
+    
+    const productId = this.toGraphQLId(id, 'Product');
 
-      const query = gql`
-        query GetProductById($id: ID!) {
-          product(id: $id) {
-            id
-            title
-            description
-            handle
-            status
-            createdAt
-            updatedAt
-            totalInventory
-            priceRangeV2 {
-              minVariantPrice {
-                amount
-                currencyCode
-              }
-              maxVariantPrice {
-                amount
-                currencyCode
-              }
-            }
-            images(first: 5) {
-              edges {
-                node {
-                  id
-                  url
-                  altText
-                  width
-                  height
-                }
+    const graphQLQuery = `
+      query GetProduct($id: ID!) {
+        product(id: $id) {
+          id
+          title
+          handle
+          descriptionHtml
+          vendor
+          productType
+          tags
+          status
+          createdAt
+          updatedAt
+          variants(first: 50) {
+            edges {
+              node {
+                id
+                title
+                price
+                compareAtPrice
+                sku
+                inventoryQuantity
+                weight
+                weightUnit
+                requiresShipping
+                taxable
+                inventoryManagement
               }
             }
-            variants(first: 20) {
-              edges {
-                node {
-                  id
-                  title
-                  price
-                  inventoryQuantity
-                  sku
-                  selectedOptions {
-                    name
-                    value
-                  }
-                }
+          }
+          images(first: 20) {
+            edges {
+              node {
+                id
+                url
+                altText
+                width
+                height
               }
             }
-            collections(first: 5) {
-              edges {
-                node {
-                  id
-                  title
-                }
-              }
-            }
-            tags
-            vendor
           }
         }
-      `;
-
-      const variables = {
-        id: productId
-      };
-
-      const data = (await shopifyClient.request(query, variables)) as {
-        product: any;
-      };
-
-      if (!data.product) {
-        throw new Error(`Product with ID ${productId} not found`);
       }
+    `;
 
-      // Format product data
-      const product = data.product;
-
-      // Format variants
-      const variants = product.variants.edges.map((variantEdge: any) => ({
-        id: variantEdge.node.id,
-        title: variantEdge.node.title,
-        price: variantEdge.node.price,
-        inventoryQuantity: variantEdge.node.inventoryQuantity,
-        sku: variantEdge.node.sku,
-        options: variantEdge.node.selectedOptions
-      }));
-
-      // Format images
-      const images = product.images.edges.map((imageEdge: any) => ({
-        id: imageEdge.node.id,
-        url: imageEdge.node.url,
-        altText: imageEdge.node.altText,
-        width: imageEdge.node.width,
-        height: imageEdge.node.height
-      }));
-
-      // Format collections
-      const collections = product.collections.edges.map(
-        (collectionEdge: any) => ({
-          id: collectionEdge.node.id,
-          title: collectionEdge.node.title
-        })
-      );
-
-      const formattedProduct = {
-        id: product.id,
-        title: product.title,
-        description: product.description,
-        handle: product.handle,
-        status: product.status,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-        totalInventory: product.totalInventory,
-        priceRange: {
-          minPrice: {
-            amount: product.priceRangeV2.minVariantPrice.amount,
-            currencyCode: product.priceRangeV2.minVariantPrice.currencyCode
-          },
-          maxPrice: {
-            amount: product.priceRangeV2.maxVariantPrice.amount,
-            currencyCode: product.priceRangeV2.maxVariantPrice.currencyCode
-          }
-        },
-        images,
-        variants,
-        collections,
-        tags: product.tags,
-        vendor: product.vendor
-      };
-
-      return { product: formattedProduct };
-    } catch (error) {
-      console.error("Error fetching product by ID:", error);
-      throw new Error(
-        `Failed to fetch product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+    const response = await this.context.shopifyClient.query(graphQLQuery, { id: productId });
+    
+    if (!response.product) {
+      throw new Error(`Product with ID ${id} not found`);
     }
-  }
-};
 
-export { getProductById };
+    return {
+      product: response.product,
+      metadata: {
+        requestedId: id,
+        graphqlId: productId,
+      },
+    };
+  }
+}

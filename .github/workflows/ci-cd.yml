@@ -1,0 +1,202 @@
+name: Deploy Shopify MCP to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_PREFIX: shopify-mcp
+  AZURE_REGION: eastus
+
+# Restrict to specific repository only
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Shopify MCP
+    runs-on: ubuntu-latest
+    if: github.repository == 'CTS-Retail-Intern-25/shopify-mcp'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔍 Run Linting
+        run: npm run lint:check
+
+      - name: 🏗️ Build Project
+        run: npm run build
+
+      - name: 🧪 Run Tests
+        run: npm test
+        continue-on-error: true
+
+      - name: 🔐 Azure Login (User-Assigned Managed Identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ fromJSON(secrets.AZURE_MANAGED_IDENTITY).clientId }}
+          tenant-id: ${{ fromJSON(secrets.AZURE_MANAGED_IDENTITY).tenantId }}
+          subscription-id: ${{ fromJSON(secrets.AZURE_MANAGED_IDENTITY).subscriptionId }}
+
+      - name: 🐳 Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 📦 Build and Push Shopify MCP
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_PREFIX }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 🔧 Setup Environment Variables
+        run: |
+          echo "ACR=${{ secrets.ACR_LOGIN_SERVER }}" >> $GITHUB_ENV
+          echo "RG=${{ secrets.AZURE_RESOURCE_GROUP }}" >> $GITHUB_ENV
+          echo "ENV_NAME=${{ secrets.ACA_ENVIRONMENT }}" >> $GITHUB_ENV
+          echo "APP_NAME=${{ secrets.ACA_APP_NAME }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: 🏗️ Setup Azure Container Apps Environment
+        run: |
+          echo "🔍 Checking Container Apps environment..."
+          if ! az containerapp env show -g "$RG" -n "$ENV_NAME" >/dev/null 2>&1; then
+            echo "📦 Installing Container Apps extension..."
+            az extension add --name containerapp --upgrade --yes
+            
+            # Use existing Log Analytics workspace
+            echo "🔍 Getting existing Log Analytics workspace..."
+            WORKSPACE_ID=$(az monitor log-analytics workspace show \
+              -g "$RG" \
+              -n "workspace-toressistfkvx" \
+              --query customerId -o tsv)
+            WORKSPACE_KEY=$(az monitor log-analytics workspace get-shared-keys \
+              -g "$RG" \
+              -n "workspace-toressistfkvx" \
+              --query primarySharedKey -o tsv)
+            
+            echo "🏗️ Creating Container Apps environment: $ENV_NAME in ${{ env.AZURE_REGION }}"
+            az containerapp env create \
+              --name "$ENV_NAME" \
+              --resource-group "$RG" \
+              --location "${{ env.AZURE_REGION }}" \
+              --logs-workspace-id "$WORKSPACE_ID" \
+              --logs-workspace-key "$WORKSPACE_KEY"
+           
+            echo "✅ Container Apps environment created successfully"
+          else
+            echo "✅ Container Apps environment already exists"
+          fi
+
+      - name: 🚀 Deploy Shopify MCP Server
+        run: |
+          echo "🚀 Deploying Shopify MCP Server..."
+          IMAGE="$ACR/${{ env.IMAGE_PREFIX }}:$IMAGE_TAG"
+         
+          if az containerapp show -g "$RG" -n "$APP_NAME" >/dev/null 2>&1; then
+            echo "🔄 Updating existing Shopify MCP Server..."
+            az containerapp update \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --image "$IMAGE" \
+              --set-env-vars \
+                SHOPIFY_ACCESS_TOKEN="${{ secrets.SHOPIFY_ACCESS_TOKEN }}" \
+                MYSHOPIFY_DOMAIN="${{ secrets.MYSHOPIFY_DOMAIN }}" \
+                MCP_TOOL_PACKAGE="${{ secrets.MCP_TOOL_PACKAGE }}" \
+                DEBUG_MODE="${{ secrets.DEBUG_MODE }}" \
+                LOG_LEVEL="${{ secrets.LOG_LEVEL }}" \
+                TIMEOUT="${{ secrets.TIMEOUT }}" \
+                RETRY_ATTEMPTS="${{ secrets.RETRY_ATTEMPTS }}"
+          else
+            echo "🆕 Creating new Shopify MCP Server..."
+            az containerapp create \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --environment "$ENV_NAME" \
+              --image "$IMAGE" \
+              --ingress external \
+              --target-port 3000 \
+              --env-vars \
+                SHOPIFY_ACCESS_TOKEN="${{ secrets.SHOPIFY_ACCESS_TOKEN }}" \
+                MYSHOPIFY_DOMAIN="${{ secrets.MYSHOPIFY_DOMAIN }}" \
+                MCP_TOOL_PACKAGE="${{ secrets.MCP_TOOL_PACKAGE }}" \
+                DEBUG_MODE="${{ secrets.DEBUG_MODE }}" \
+                LOG_LEVEL="${{ secrets.LOG_LEVEL }}" \
+                TIMEOUT="${{ secrets.TIMEOUT }}" \
+                RETRY_ATTEMPTS="${{ secrets.RETRY_ATTEMPTS }}" \
+              --registry-server "$ACR" \
+              --registry-username "${{ secrets.ACR_USERNAME }}" \
+              --registry-password "${{ secrets.ACR_PASSWORD }}" \
+              --cpu 0.5 --memory 1Gi \
+              --min-replicas 1 --max-replicas 1
+          fi
+         
+          echo "✅ Shopify MCP Server deployed successfully"
+          SERVER_FQDN=$(az containerapp show -g "$RG" -n "$APP_NAME" --query properties.configuration.ingress.fqdn -o tsv)
+          echo "SERVER_FQDN=$SERVER_FQDN" >> $GITHUB_ENV
+          echo "🔗 MCP Server URL: https://$SERVER_FQDN"
+
+      - name: 🧪 Health Check
+        run: |
+          echo "🧪 Performing health check..."
+          
+          # Wait for service to be ready
+          sleep 30
+          
+          SERVER_URL="https://$SERVER_FQDN"
+          
+          # Check server accessibility
+          echo "🔍 Checking MCP Server accessibility..."
+          if curl -f "$SERVER_URL" >/dev/null 2>&1; then
+            echo "✅ MCP Server root endpoint is accessible"
+          else
+            echo "⚠️ MCP Server root endpoint accessibility check failed - service may still be starting"
+          fi
+
+      - name: ✅ Deployment Summary
+        run: |
+          echo "🎉 Shopify MCP Server Deployment Complete!"
+          echo ""
+          echo "🌐 Your MCP Server is available at:"
+          echo "   👉 MCP Server: https://$SERVER_FQDN"
+          echo ""
+          echo "📊 Deployment Details:"
+          echo "   🏷️ Image: $ACR/${{ env.IMAGE_PREFIX }}:$IMAGE_TAG"
+          echo "   📦 Resource Group: $RG"
+          echo "   🔧 Container App: $APP_NAME"
+          echo "   🐳 Registry: $ACR"
+          echo "   🌍 Region: ${{ env.AZURE_REGION }}"
+          echo ""
+          echo "🔧 Configuration:"
+          echo "   📦 MCP Tool Package: ${{ secrets.MCP_TOOL_PACKAGE || 'full' }}"
+          echo "   🐛 Debug Mode: ${{ secrets.DEBUG_MODE || 'false' }}"
+          echo "   🔍 Log Level: ${{ secrets.LOG_LEVEL || 'INFO' }}"
+          echo ""
+          echo "🔗 Useful Commands:"
+          echo "   View Logs: az containerapp logs show --name $APP_NAME --resource-group $RG"
+          echo "   Restart App: az containerapp restart --name $APP_NAME --resource-group $RG"
+          echo "   Scale App: az containerapp update --name $APP_NAME --resource-group $RG --min-replicas 0 --max-replicas 2"

@@ -1,88 +1,90 @@
+/**
+ * Create Product Tool - Create a new product in Shopify store
+ * Following enterprise patterns from servicenow-mcp
+ */
 
-import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
-import { z } from "zod";
+import { z } from 'zod';
+import { BaseTool } from './baseTool.js';
 
-// Input schema for creating a product
-const CreateProductInputSchema = z.object({
-  title: z.string().min(1),
+// Input validation schema
+const CreateProductSchema = z.object({
+  title: z.string().min(1, 'Product title is required'),
   descriptionHtml: z.string().optional(),
   vendor: z.string().optional(),
   productType: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).default("DRAFT"),
+  status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional().default('DRAFT'),
 });
 
-type CreateProductInput = z.infer<typeof CreateProductInputSchema>;
+type CreateProductArgs = z.infer<typeof CreateProductSchema>;
 
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+export class CreateProductTool extends BaseTool {
+  get name(): string {
+    return 'create-product';
+  }
 
-const createProduct = {
-  name: "create-product",
-  description: "Create a new product",
-  schema: CreateProductInputSchema,
+  get description(): string {
+    return 'Create a new product in the Shopify store';
+  }
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
+  get inputSchema() {
+    return CreateProductSchema;
+  }
 
-  execute: async (input: CreateProductInput) => {
-    try {
-      const query = gql`
-        mutation productCreate($input: ProductInput!) {
-          productCreate(input: $input) {
-            product {
-              id
-              title
-              descriptionHtml
-              vendor
-              productType
-              status
-              tags
-            }
-            userErrors {
-              field
-              message
-            }
+  protected async executeImpl(args: CreateProductArgs): Promise<any> {
+    const { title, descriptionHtml, vendor, productType, tags, status } = args;
+
+    const mutation = `
+      mutation productCreate($input: ProductInput!) {
+        productCreate(input: $input) {
+          product {
+            id
+            title
+            descriptionHtml
+            vendor
+            productType
+            status
+            tags
+            handle
+            createdAt
+            updatedAt
+          }
+          userErrors {
+            field
+            message
           }
         }
-      `;
-
-      const variables = {
-        input,
-      };
-
-      const data = (await shopifyClient.request(query, variables)) as {
-        productCreate: {
-          product: any;
-          userErrors: Array<{
-            field: string;
-            message: string;
-          }>;
-        };
-      };
-
-      // If there are user errors, throw an error
-      if (data.productCreate.userErrors.length > 0) {
-        throw new Error(
-          `Failed to create product: ${data.productCreate.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
       }
+    `;
 
-      return { product: data.productCreate.product };
-    } catch (error) {
-      console.error("Error creating product:", error);
-      throw new Error(
-        `Failed to create product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+    const variables = {
+      input: {
+        title,
+        descriptionHtml,
+        vendor,
+        productType,
+        tags,
+        status,
+      },
+    };
+
+    const result = await this.context.shopifyClient.mutate(mutation, variables);
+    
+    if (result.productCreate.userErrors?.length > 0) {
+      const errors = result.productCreate.userErrors
+        .map((error: any) => `${error.field}: ${error.message}`)
+        .join(', ');
+      throw new Error(`Product creation failed: ${errors}`);
     }
-  },
-};
 
-export { createProduct };
+    this.context.logger.info('Product created successfully', {
+      productId: result.productCreate.product.id,
+      title: result.productCreate.product.title,
+    });
+
+    return {
+      success: true,
+      product: result.productCreate.product,
+    };
+  }
+}

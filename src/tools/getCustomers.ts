@@ -1,113 +1,103 @@
-import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
-import { z } from "zod";
+/**
+ * Get Customers Tool - Retrieve customers from Shopify store
+ * Following enterprise patterns from servicenow-mcp
+ */
 
-// Input schema for getCustomers
-const GetCustomersInputSchema = z.object({
+import { z } from 'zod';
+import { BaseTool } from './baseTool.js';
+
+// Input validation schema
+const GetCustomersSchema = z.object({
   searchQuery: z.string().optional(),
-  limit: z.number().default(10)
+  limit: z.number().min(1).max(250).optional().default(10),
 });
 
-type GetCustomersInput = z.infer<typeof GetCustomersInputSchema>;
+type GetCustomersArgs = z.infer<typeof GetCustomersSchema>;
 
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+export class GetCustomersTool extends BaseTool {
+  get name(): string {
+    return 'get-customers';
+  }
 
-const getCustomers = {
-  name: "get-customers",
-  description: "Get customers or search by name/email",
-  schema: GetCustomersInputSchema,
+  get description(): string {
+    return 'Retrieve customers from the Shopify store with optional search functionality';
+  }
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
+  get inputSchema() {
+    return GetCustomersSchema;
+  }
 
-  execute: async (input: GetCustomersInput) => {
-    try {
-      const { searchQuery, limit } = input;
+  protected async executeImpl(args: GetCustomersArgs): Promise<any> {
+    const { searchQuery, limit } = args;
 
-      const query = gql`
-        query GetCustomers($first: Int!, $query: String) {
-          customers(first: $first, query: $query) {
-            edges {
-              node {
-                id
-                firstName
-                lastName
-                email
+    const query = `
+      query GetCustomers($first: Int!, $query: String) {
+        customers(first: $first, query: $query) {
+          edges {
+            node {
+              id
+              firstName
+              lastName
+              email
+              phone
+              createdAt
+              updatedAt
+              tags
+              defaultAddress {
+                address1
+                address2
+                city
+                provinceCode
+                zip
+                country
                 phone
-                createdAt
-                updatedAt
-                tags
-                defaultAddress {
-                  address1
-                  address2
-                  city
-                  provinceCode
-                  zip
-                  country
-                  phone
-                }
-                addresses {
-                  address1
-                  address2
-                  city
-                  provinceCode
-                  zip
-                  country
-                  phone
-                }
-                amountSpent {
-                  amount
-                  currencyCode
-                }
-                numberOfOrders
               }
+              addresses {
+                address1
+                address2
+                city
+                provinceCode
+                zip
+                country
+                phone
+              }
+              amountSpent {
+                amount
+                currencyCode
+              }
+              numberOfOrders
             }
           }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
         }
-      `;
+      }
+    `;
 
-      const variables = {
-        first: limit,
-        query: searchQuery
-      };
+    const variables = {
+      first: limit,
+      ...(searchQuery && { query: searchQuery }),
+    };
 
-      const data = (await shopifyClient.request(query, variables)) as {
-        customers: any;
-      };
+    const result = await this.context.shopifyClient.query(query, variables);
+    
+    const customers = this.extractEdges(result, 'customers');
+    const pageInfo = this.extractPageInfo(result, 'customers');
 
-      // Extract and format customer data
-      const customers = data.customers.edges.map((edge: any) => {
-        const customer = edge.node;
+    this.context.logger.info('Customers retrieved successfully', {
+      count: customers.length,
+      searchQuery,
+      hasNextPage: pageInfo?.hasNextPage,
+    });
 
-        return {
-          id: customer.id,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          createdAt: customer.createdAt,
-          updatedAt: customer.updatedAt,
-          tags: customer.tags,
-          defaultAddress: customer.defaultAddress,
-          addresses: customer.addresses,
-          amountSpent: customer.amountSpent,
-          numberOfOrders: customer.numberOfOrders
-        };
-      });
-
-      return { customers };
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-      throw new Error(
-        `Failed to fetch customers: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
+    return {
+      customers,
+      pageInfo,
+      totalCount: customers.length,
+    };
   }
-};
-
-export { getCustomers };
+}

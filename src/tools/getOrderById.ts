@@ -1,197 +1,169 @@
-import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
-import { z } from "zod";
+/**
+ * Get Order By ID Tool - Retrieve a specific order from Shopify store
+ * Following enterprise patterns from servicenow-mcp
+ */
 
-// Input schema for getOrderById
-const GetOrderByIdInputSchema = z.object({
-  orderId: z.string().min(1)
+import { z } from 'zod';
+import { BaseTool } from './baseTool.js';
+
+// Input validation schema
+const GetOrderByIdSchema = z.object({
+  orderId: z.string().min(1, 'Order ID is required'),
 });
 
-type GetOrderByIdInput = z.infer<typeof GetOrderByIdInputSchema>;
+type GetOrderByIdArgs = z.infer<typeof GetOrderByIdSchema>;
 
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+export class GetOrderByIdTool extends BaseTool {
+  get name(): string {
+    return 'get-order-by-id';
+  }
 
-const getOrderById = {
-  name: "get-order-by-id",
-  description: "Get a specific order by ID",
-  schema: GetOrderByIdInputSchema,
+  get description(): string {
+    return 'Retrieve a specific order from the Shopify store by its ID';
+  }
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
+  get inputSchema() {
+    return GetOrderByIdSchema;
+  }
 
-  execute: async (input: GetOrderByIdInput) => {
-    try {
-      const { orderId } = input;
+  protected async executeImpl(args: GetOrderByIdArgs): Promise<any> {
+    const { orderId } = args;
 
-      const query = gql`
-        query GetOrderById($id: ID!) {
-          order(id: $id) {
+    const orderGid = this.toGraphQLId(orderId, 'Order');
+
+    const query = `
+      query GetOrderById($id: ID!) {
+        order(id: $id) {
+          id
+          name
+          createdAt
+          updatedAt
+          displayFinancialStatus
+          displayFulfillmentStatus
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalShippingPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          customer {
             id
-            name
-            createdAt
-            displayFinancialStatus
-            displayFulfillmentStatus
-            totalPriceSet {
-              shopMoney {
-                amount
-                currencyCode
-              }
-            }
-            subtotalPriceSet {
-              shopMoney {
-                amount
-                currencyCode
-              }
-            }
-            totalShippingPriceSet {
-              shopMoney {
-                amount
-                currencyCode
-              }
-            }
-            totalTaxSet {
-              shopMoney {
-                amount
-                currencyCode
-              }
-            }
-            customer {
-              id
-              firstName
-              lastName
-              email
-              phone
-            }
-            shippingAddress {
-              address1
-              address2
-              city
-              provinceCode
-              zip
-              country
-              phone
-            }
-            lineItems(first: 20) {
-              edges {
-                node {
-                  id
-                  title
-                  quantity
-                  originalTotalSet {
-                    shopMoney {
-                      amount
-                      currencyCode
-                    }
-                  }
-                  variant {
-                    id
-                    title
-                    sku
+            firstName
+            lastName
+            email
+            phone
+          }
+          shippingAddress {
+            address1
+            address2
+            city
+            provinceCode
+            zip
+            country
+            phone
+          }
+          billingAddress {
+            address1
+            address2
+            city
+            provinceCode
+            zip
+            country
+            phone
+          }
+          lineItems(first: 20) {
+            edges {
+              node {
+                id
+                title
+                quantity
+                originalTotalSet {
+                  shopMoney {
+                    amount
+                    currencyCode
                   }
                 }
-              }
-            }
-            tags
-            note
-            metafields(first: 20) {
-              edges {
-                node {
+                variant {
                   id
-                  namespace
-                  key
-                  value
-                  type
+                  title
+                  sku
+                  price
+                }
+                product {
+                  id
+                  title
+                  handle
                 }
               }
             }
           }
-        }
-      `;
-
-      const variables = {
-        id: orderId
-      };
-
-      const data = (await shopifyClient.request(query, variables)) as {
-        order: any;
-      };
-
-      if (!data.order) {
-        throw new Error(`Order with ID ${orderId} not found`);
-      }
-
-      // Extract and format order data
-      const order = data.order;
-
-      // Format line items
-      const lineItems = order.lineItems.edges.map((lineItemEdge: any) => {
-        const lineItem = lineItemEdge.node;
-        return {
-          id: lineItem.id,
-          title: lineItem.title,
-          quantity: lineItem.quantity,
-          originalTotal: lineItem.originalTotalSet.shopMoney,
-          variant: lineItem.variant
-            ? {
-                id: lineItem.variant.id,
-                title: lineItem.variant.title,
-                sku: lineItem.variant.sku
-              }
-            : null
-        };
-      });
-
-      // Format metafields
-      const metafields = order.metafields.edges.map((metafieldEdge: any) => {
-        const metafield = metafieldEdge.node;
-        return {
-          id: metafield.id,
-          namespace: metafield.namespace,
-          key: metafield.key,
-          value: metafield.value,
-          type: metafield.type
-        };
-      });
-
-      const formattedOrder = {
-        id: order.id,
-        name: order.name,
-        createdAt: order.createdAt,
-        financialStatus: order.displayFinancialStatus,
-        fulfillmentStatus: order.displayFulfillmentStatus,
-        totalPrice: order.totalPriceSet.shopMoney,
-        subtotalPrice: order.subtotalPriceSet.shopMoney,
-        totalShippingPrice: order.totalShippingPriceSet.shopMoney,
-        totalTax: order.totalTaxSet.shopMoney,
-        customer: order.customer
-          ? {
-              id: order.customer.id,
-              firstName: order.customer.firstName,
-              lastName: order.customer.lastName,
-              email: order.customer.email,
-              phone: order.customer.phone
+          tags
+          note
+          cancelReason
+          cancelledAt
+          fulfillments {
+            id
+            status
+            trackingInfo {
+              number
+              url
+              company
             }
-          : null,
-        shippingAddress: order.shippingAddress,
-        lineItems,
-        tags: order.tags,
-        note: order.note,
-        metafields
-      };
+          }
+        }
+      }
+    `;
 
-      return { order: formattedOrder };
-    } catch (error) {
-      console.error("Error fetching order by ID:", error);
-      throw new Error(
-        `Failed to fetch order: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+    const variables = {
+      id: orderGid,
+    };
+
+    const result = await this.context.shopifyClient.query(query, variables);
+    
+    if (!result.order) {
+      throw new Error(`Order not found with ID: ${orderId}`);
     }
-  }
-};
 
-export { getOrderById };
+    const order = result.order;
+    const lineItems = this.extractEdges(order, 'lineItems');
+
+    const formattedOrder = {
+      ...order,
+      lineItems,
+      financialStatus: order.displayFinancialStatus,
+      fulfillmentStatus: order.displayFulfillmentStatus,
+      totalPrice: order.totalPriceSet.shopMoney,
+      subtotalPrice: order.subtotalPriceSet.shopMoney,
+      totalShippingPrice: order.totalShippingPriceSet.shopMoney,
+      totalTax: order.totalTaxSet.shopMoney,
+    };
+
+    this.context.logger.info('Order retrieved successfully', {
+      orderId: order.id,
+      orderName: order.name,
+      lineItemCount: lineItems.length,
+    });
+
+    return {
+      order: formattedOrder,
+    };
+  }
+}

@@ -1,280 +1,185 @@
 #!/usr/bin/env node
 
+/**
+ * Shopify MCP Server - Main Entry Point
+ * Enterprise-grade Shopify MCP server following servicenow-mcp methodology
+ * Provides comprehensive tool package management, logging, and error handling
+ */
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import dotenv from "dotenv";
-import { GraphQLClient } from "graphql-request";
-import minimist from "minimist";
 import { z } from "zod";
 
-// Import tools
-import { getCustomerOrders } from "./tools/getCustomerOrders.js";
-import { getCustomers } from "./tools/getCustomers.js";
-import { getOrderById } from "./tools/getOrderById.js";
-import { getOrders } from "./tools/getOrders.js";
-import { getProductById } from "./tools/getProductById.js";
-import { getProducts } from "./tools/getProducts.js";
-import { updateCustomer } from "./tools/updateCustomer.js";
-import { updateOrder } from "./tools/updateOrder.js";
-import { createProduct } from "./tools/createProduct.js";
+// Core infrastructure
+import { configManager } from './config/config.js';
+import { logger } from './utils/logger.js';
+import { shopifyClient } from './utils/shopifyClient.js';
+import { toolPackageManager } from './utils/toolPackageManager.js';
 
-// Parse command line arguments
-const argv = minimist(process.argv.slice(2));
+// Tool implementations
+import { GetProductsTool } from './tools/getProducts.js';
+import { GetProductByIdTool } from './tools/getProductById.js';
+import { GetCustomersTool } from './tools/getCustomers.js';
+import { GetCustomerOrdersTool } from './tools/getCustomerOrders.js';
+import { GetOrdersTool } from './tools/getOrders.js';
+import { GetOrderByIdTool } from './tools/getOrderById.js';
+import { CreateProductTool } from './tools/createProduct.js';
+import { UpdateCustomerTool } from './tools/updateCustomer.js';
 
-// Load environment variables from .env file (if it exists)
-dotenv.config();
+// Types
+import { ToolContext, ToolExecutionError } from './types/types.js';
 
-// Define environment variables - from command line or .env file
-const SHOPIFY_ACCESS_TOKEN =
-  argv.accessToken || process.env.SHOPIFY_ACCESS_TOKEN;
-const MYSHOPIFY_DOMAIN = argv.domain || process.env.MYSHOPIFY_DOMAIN;
+class ShopifyMCPServer {
+  private server: McpServer;
+  private toolContext: ToolContext;
+  private registeredTools: Map<string, any>;
 
-// Store in process.env for backwards compatibility
-process.env.SHOPIFY_ACCESS_TOKEN = SHOPIFY_ACCESS_TOKEN;
-process.env.MYSHOPIFY_DOMAIN = MYSHOPIFY_DOMAIN;
+  constructor() {
+    this.server = new McpServer({
+      name: "shopify-mcp",
+      version: "2.0.0",
+    });
+    
+    this.registeredTools = new Map();
+    
+    this.toolContext = {
+      config: configManager.getConfig(),
+      logger,
+      shopifyClient,
+    };
+  }
 
-// Validate required environment variables
-if (!SHOPIFY_ACCESS_TOKEN) {
-  console.error("Error: SHOPIFY_ACCESS_TOKEN is required.");
-  console.error("Please provide it via command line argument or .env file.");
-  console.error("  Command line: --accessToken=your_token");
-  process.exit(1);
-}
+  async initialize(): Promise<void> {
+    try {
+      logger.logServerStart();
 
-if (!MYSHOPIFY_DOMAIN) {
-  console.error("Error: MYSHOPIFY_DOMAIN is required.");
-  console.error("Please provide it via command line argument or .env file.");
-  console.error("  Command line: --domain=your-store.myshopify.com");
-  process.exit(1);
-}
+      // Validate configuration
+      configManager.validateConfiguration();
+      configManager.printConfiguration();
 
-// Create Shopify GraphQL client
-const shopifyClient = new GraphQLClient(
-  `https://${MYSHOPIFY_DOMAIN}/admin/api/2023-07/graphql.json`,
-  {
-    headers: {
-      "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-      "Content-Type": "application/json"
+      // Test Shopify connection
+      const healthCheck = await shopifyClient.healthCheck();
+      if (!healthCheck) {
+        throw new Error('Failed to connect to Shopify GraphQL API');
+      }
+
+      // Register tools based on active package
+      await this.registerTools();
+
+      logger.logServerReady();
+    } catch (error) {
+      logger.logServerError(error as Error);
+      throw error;
     }
   }
-);
 
-// Initialize tools with shopifyClient
-getProducts.initialize(shopifyClient);
-getProductById.initialize(shopifyClient);
-getCustomers.initialize(shopifyClient);
-getOrders.initialize(shopifyClient);
-getOrderById.initialize(shopifyClient);
-updateOrder.initialize(shopifyClient);
-getCustomerOrders.initialize(shopifyClient);
-updateCustomer.initialize(shopifyClient);
-createProduct.initialize(shopifyClient);
+  private async registerTools(): Promise<void> {
+    const activeTools = toolPackageManager.getActiveTools();
+    
+    logger.info(`Registering ${activeTools.length} tools from package '${toolPackageManager.getActivePackage()}'`);
 
-// Set up MCP server
-const server = new McpServer({
-  name: "shopify",
-  version: "1.0.0",
-  description:
-    "MCP Server for Shopify API, enabling interaction with store data through GraphQL API"
+    // Map of tool names to their implementations
+    const toolImplementations = {
+      'get-products': GetProductsTool,
+      'get-product-by-id': GetProductByIdTool,
+      'get-customers': GetCustomersTool,
+      'get-customer-orders': GetCustomerOrdersTool,
+      'get-orders': GetOrdersTool,
+      'get-order-by-id': GetOrderByIdTool,
+      'create-product': CreateProductTool,
+      'update-customer': UpdateCustomerTool,
+    };
+
+    for (const toolName of activeTools) {
+      const ToolClass = toolImplementations[toolName as keyof typeof toolImplementations];
+      
+      if (ToolClass) {
+        const toolInstance = new ToolClass(this.toolContext);
+        this.registeredTools.set(toolName, toolInstance);
+        this.registerMCPTool(toolInstance);
+        logger.debug(`Registered tool: ${toolName}`);
+      } else {
+        logger.warn(`Tool implementation not found for: ${toolName}`);
+      }
+    }
+
+    toolPackageManager.printPackageInfo();
+  }
+
+  private registerMCPTool(toolInstance: any): void {
+    this.server.tool(
+      toolInstance.name,
+      toolInstance.description,
+      {
+        type: "object",
+        properties: toolInstance.inputSchema.shape || {},
+        required: Object.keys(toolInstance.inputSchema.shape || {}),
+      },
+      async ({ arguments: args }: any) => {
+        const result = await toolInstance.execute(args || {});
+
+        if (!result.success) {
+          throw new ToolExecutionError(result.error || 'Tool execution failed', result.metadata);
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result.data, null, 2),
+            },
+          ],
+        };
+      }
+    );
+  }
+
+  async start(): Promise<void> {
+    try {
+      await this.initialize();
+
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      
+      logger.info("🚀 Shopify MCP Server is running and ready to serve requests");
+    } catch (error) {
+      logger.logServerError(error as Error);
+      process.exit(1);
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    logger.logServerShutdown();
+    process.exit(0);
+  }
+}
+
+// Handle process signals
+process.on('SIGINT', async () => {
+  logger.info('Received SIGINT, shutting down gracefully...');
+  process.exit(0);
 });
 
-// Add tools individually, using their schemas directly
-server.tool(
-  "get-products",
-  {
-    searchTitle: z.string().optional(),
-    limit: z.number().default(10)
-  },
-  async (args) => {
-    const result = await getProducts.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
+process.on('SIGTERM', async () => {
+  logger.info('Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
 
-server.tool(
-  "get-product-by-id",
-  {
-    productId: z.string().min(1)
-  },
-  async (args) => {
-    const result = await getProductById.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
+process.on('unhandledRejection', (reason, promise) => {
+  logger.critical('Unhandled Rejection at:', { promise, reason });
+  process.exit(1);
+});
 
-server.tool(
-  "get-customers",
-  {
-    searchQuery: z.string().optional(),
-    limit: z.number().default(10)
-  },
-  async (args) => {
-    const result = await getCustomers.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-server.tool(
-  "get-orders",
-  {
-    status: z.enum(["any", "open", "closed", "cancelled"]).default("any"),
-    limit: z.number().default(10)
-  },
-  async (args) => {
-    const result = await getOrders.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-// Add the getOrderById tool
-server.tool(
-  "get-order-by-id",
-  {
-    orderId: z.string().min(1)
-  },
-  async (args) => {
-    const result = await getOrderById.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-// Add the updateOrder tool
-server.tool(
-  "update-order",
-  {
-    id: z.string().min(1),
-    tags: z.array(z.string()).optional(),
-    email: z.string().email().optional(),
-    note: z.string().optional(),
-    customAttributes: z
-      .array(
-        z.object({
-          key: z.string(),
-          value: z.string()
-        })
-      )
-      .optional(),
-    metafields: z
-      .array(
-        z.object({
-          id: z.string().optional(),
-          namespace: z.string().optional(),
-          key: z.string().optional(),
-          value: z.string(),
-          type: z.string().optional()
-        })
-      )
-      .optional(),
-    shippingAddress: z
-      .object({
-        address1: z.string().optional(),
-        address2: z.string().optional(),
-        city: z.string().optional(),
-        company: z.string().optional(),
-        country: z.string().optional(),
-        firstName: z.string().optional(),
-        lastName: z.string().optional(),
-        phone: z.string().optional(),
-        province: z.string().optional(),
-        zip: z.string().optional()
-      })
-      .optional()
-  },
-  async (args) => {
-    const result = await updateOrder.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-// Add the getCustomerOrders tool
-server.tool(
-  "get-customer-orders",
-  {
-    customerId: z
-      .string()
-      .regex(/^\d+$/, "Customer ID must be numeric")
-      .describe("Shopify customer ID, numeric excluding gid prefix"),
-    limit: z.number().default(10)
-  },
-  async (args) => {
-    const result = await getCustomerOrders.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-// Add the updateCustomer tool
-server.tool(
-  "update-customer",
-  {
-    id: z
-      .string()
-      .regex(/^\d+$/, "Customer ID must be numeric")
-      .describe("Shopify customer ID, numeric excluding gid prefix"),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    email: z.string().email().optional(),
-    phone: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    note: z.string().optional(),
-    taxExempt: z.boolean().optional(),
-    metafields: z
-      .array(
-        z.object({
-          id: z.string().optional(),
-          namespace: z.string().optional(),
-          key: z.string().optional(),
-          value: z.string(),
-          type: z.string().optional()
-        })
-      )
-      .optional()
-  },
-  async (args) => {
-    const result = await updateCustomer.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
-// Add the createProduct tool
-server.tool(
-  "create-product",
-  {
-    title: z.string().min(1),
-    descriptionHtml: z.string().optional(),
-    vendor: z.string().optional(),
-    productType: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).default("DRAFT"),
-  },
-  async (args) => {
-    const result = await createProduct.execute(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
+process.on('uncaughtException', (error) => {
+  logger.critical('Uncaught Exception:', { error: error.message, stack: error.stack });
+  process.exit(1);
+});
 
 // Start the server
-const transport = new StdioServerTransport();
-server
-  .connect(transport)
-  .then(() => {})
-  .catch((error: unknown) => {
-    console.error("Failed to start Shopify MCP Server:", error);
-  });
+const server = new ShopifyMCPServer();
+server.start().catch(error => {
+  logger.critical('Failed to start server:', { error: error.message });
+  process.exit(1);
+});
+
+

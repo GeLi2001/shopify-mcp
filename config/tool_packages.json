@@ -1,0 +1,60 @@
+{
+  "none": {
+    "name": "None",
+    "description": "No tools loaded",
+    "tools": []
+  },
+  "basic": {
+    "name": "Basic",
+    "description": "Essential read-only tools for basic store information",
+    "tools": [
+      "get-products",
+      "get-product-by-id",
+      "get-customers",
+      "get-orders",
+      "get-order-by-id"
+    ]
+  },
+  "full": {
+    "name": "Full",
+    "description": "All available tools for complete store management",
+    "tools": [
+      "get-products",
+      "get-product-by-id",
+      "get-customers",
+      "get-customer-orders",
+      "get-orders",
+      "get-order-by-id",
+      "create-product",
+      "update-customer"
+    ]
+  },
+  "product_management": {
+    "name": "Product Management",
+    "description": "Tools focused on product operations",
+    "tools": [
+      "get-products",
+      "get-product-by-id",
+      "create-product"
+    ]
+  },
+  "customer_service": {
+    "name": "Customer Service",
+    "description": "Tools for customer and order management",
+    "tools": [
+      "get-customers",
+      "get-customer-orders",
+      "get-orders",
+      "get-order-by-id",
+      "update-customer"
+    ]
+  },
+  "order_management": {
+    "name": "Order Management",
+    "description": "Tools specifically for order operations",
+    "tools": [
+      "get-orders",
+      "get-order-by-id"
+    ]
+  }
+}

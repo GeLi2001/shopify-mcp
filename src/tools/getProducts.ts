@@ -1,143 +1,126 @@
-import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
-import { z } from "zod";
+/**
+ * Get Products Tool - Retrieve products from Shopify store
+ * Following enterprise patterns from servicenow-mcp
+ */
 
-// Input schema for getProducts
-const GetProductsInputSchema = z.object({
-  searchTitle: z.string().optional(),
-  limit: z.number().default(10)
+import { z } from 'zod';
+import { BaseTool } from './baseTool.js';
+import { ShopifyProduct } from '../types/types.js';
+
+// Input validation schema
+const GetProductsSchema = z.object({
+  limit: z.number().min(1).max(250).optional().default(10),
+  cursor: z.string().optional(),
+  query: z.string().optional(),
+  sortKey: z.enum(['CREATED_AT', 'UPDATED_AT', 'TITLE', 'VENDOR', 'PRODUCT_TYPE', 'ID']).optional().default('CREATED_AT'),
+  reverse: z.boolean().optional().default(false),
 });
 
-type GetProductsInput = z.infer<typeof GetProductsInputSchema>;
+type GetProductsArgs = z.infer<typeof GetProductsSchema>;
 
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+export class GetProductsTool extends BaseTool {
+  get name(): string {
+    return 'get-products';
+  }
 
-const getProducts = {
-  name: "get-products",
-  description: "Get all products or search by title",
-  schema: GetProductsInputSchema,
+  get description(): string {
+    return 'Retrieve products from the Shopify store with optional filtering and pagination';
+  }
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
+  get inputSchema() {
+    return GetProductsSchema;
+  }
 
-  execute: async (input: GetProductsInput) => {
-    try {
-      const { searchTitle, limit } = input;
+  protected async executeImpl(args: GetProductsArgs): Promise<any> {
+    const { limit, cursor, query, sortKey, reverse } = args;
 
-      // Create query based on whether we're searching by title or not
-      const query = gql`
-        query GetProducts($first: Int!, $query: String) {
-          products(first: $first, query: $query) {
-            edges {
-              node {
-                id
-                title
-                description
-                handle
-                status
-                createdAt
-                updatedAt
-                totalInventory
-                priceRangeV2 {
-                  minVariantPrice {
-                    amount
-                    currencyCode
-                  }
-                  maxVariantPrice {
-                    amount
-                    currencyCode
-                  }
-                }
-                images(first: 1) {
-                  edges {
-                    node {
-                      url
-                      altText
-                    }
+    const graphQLQuery = `
+      query GetProducts($first: Int, $after: String, $query: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
+        products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+          edges {
+            node {
+              id
+              title
+              handle
+              descriptionHtml
+              vendor
+              productType
+              tags
+              status
+              createdAt
+              updatedAt
+              variants(first: 10) {
+                edges {
+                  node {
+                    id
+                    title
+                    price
+                    compareAtPrice
+                    sku
+                    inventoryQuantity
+                    weight
+                    weightUnit
+                    requiresShipping
+                    taxable
+                    inventoryManagement
                   }
                 }
-                variants(first: 5) {
-                  edges {
-                    node {
-                      id
-                      title
-                      price
-                      inventoryQuantity
-                      sku
-                    }
+              }
+              images(first: 5) {
+                edges {
+                  node {
+                    id
+                    url
+                    altText
+                    width
+                    height
                   }
                 }
               }
             }
           }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
         }
-      `;
+      }
+    `;
 
-      const variables = {
-        first: limit,
-        query: searchTitle ? `title:*${searchTitle}*` : undefined
-      };
+    const variables = {
+      first: limit,
+      after: cursor,
+      query,
+      sortKey,
+      reverse,
+    };
 
-      const data = (await shopifyClient.request(query, variables)) as {
-        products: any;
-      };
-
-      // Extract and format product data
-      const products = data.products.edges.map((edge: any) => {
-        const product = edge.node;
-
-        // Format variants
-        const variants = product.variants.edges.map((variantEdge: any) => ({
-          id: variantEdge.node.id,
-          title: variantEdge.node.title,
-          price: variantEdge.node.price,
-          inventoryQuantity: variantEdge.node.inventoryQuantity,
-          sku: variantEdge.node.sku
-        }));
-
-        // Get first image if it exists
-        const imageUrl =
-          product.images.edges.length > 0
-            ? product.images.edges[0].node.url
-            : null;
-
-        return {
-          id: product.id,
-          title: product.title,
-          description: product.description,
-          handle: product.handle,
-          status: product.status,
-          createdAt: product.createdAt,
-          updatedAt: product.updatedAt,
-          totalInventory: product.totalInventory,
-          priceRange: {
-            minPrice: {
-              amount: product.priceRangeV2.minVariantPrice.amount,
-              currencyCode: product.priceRangeV2.minVariantPrice.currencyCode
-            },
-            maxPrice: {
-              amount: product.priceRangeV2.maxVariantPrice.amount,
-              currencyCode: product.priceRangeV2.maxVariantPrice.currencyCode
-            }
-          },
-          imageUrl,
-          variants
-        };
-      });
-
-      return { products };
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      throw new Error(
-        `Failed to fetch products: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+    const response = await this.context.shopifyClient.query(graphQLQuery, variables);
+    
+    if (!response.products) {
+      throw new Error('Invalid response from Shopify GraphQL API');
     }
-  }
-};
 
-export { getProducts };
+    const products = this.extractEdges<ShopifyProduct>(response, 'products');
+    const pageInfo = this.extractPageInfo(response, 'products');
+
+    return {
+      products,
+      pagination: {
+        hasNextPage: pageInfo?.hasNextPage || false,
+        hasPreviousPage: pageInfo?.hasPreviousPage || false,
+        startCursor: pageInfo?.startCursor,
+        endCursor: pageInfo?.endCursor,
+        count: products.length,
+      },
+      metadata: {
+        query: query || 'all products',
+        sortKey,
+        reverse,
+        totalRetrieved: products.length,
+      },
+    };
+  }
+}

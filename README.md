@@ -1,23 +1,21 @@
 # Shopify MCP Server
 
-(please leave a star if you like!)
+Enterprise-grade Shopify Model Context Protocol (MCP) server that provides comprehensive access to Shopify store data through GraphQL API. Built following the servicenow-mcp methodology for enterprise architecture, reliability, and maintainability.
 
-MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
+[![CI/CD](https://github.com/CTS-Retail-Intern-25/shopify-mcp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/CTS-Retail-Intern-25/shopify-mcp/actions/workflows/ci-cd.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 
-**📦 Package Name: `shopify-mcp`**  
-**🚀 Command: `shopify-mcp` (NOT `shopify-mcp-server`)**
+## 🚀 Features
 
-<a href="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp/badge" alt="Shopify MCP server" />
-</a>
-
-## Features
-
-- **Product Management**: Search and retrieve product information
-- **Customer Management**: Load customer data and manage customer tags
-- **Order Management**: Advanced order querying and filtering
-- **GraphQL Integration**: Direct integration with Shopify's GraphQL Admin API
-- **Comprehensive Error Handling**: Clear error messages for API and authentication issues
+- **Enterprise Architecture**: Following proven patterns from servicenow-mcp
+- **Tool Package Management**: Configurable tool packages for different use cases
+- **Comprehensive Logging**: Detailed debug mode with privacy controls
+- **GraphQL Client**: Robust client with retry logic and error handling
+- **Type Safety**: Full TypeScript implementation with Zod validation
+- **Production Ready**: Docker support, CI/CD pipeline, and health checks
+- **Security**: Non-root Docker containers and environment validation
 
 ## Prerequisites
 
@@ -171,18 +169,6 @@ shopify-mcp --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
    - Get a specific order by ID
    - Inputs:
      - `orderId` (string, required): Full Shopify order ID (e.g., "gid://shopify/Order/6090960994370")
-
-3. `update-order`
-
-   - Update an existing order with new information
-   - Inputs:
-     - `id` (string, required): Shopify order ID
-     - `tags` (array of strings, optional): New tags for the order
-     - `email` (string, optional): Update customer email
-     - `note` (string, optional): Order notes
-     - `customAttributes` (array of objects, optional): Custom attributes for the order
-     - `metafields` (array of objects, optional): Order metafields
-     - `shippingAddress` (object, optional): Shipping address information
 
 ## Debugging
 
