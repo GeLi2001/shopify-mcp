@@ -13,7 +13,7 @@ MCP Server for Shopify API, enabling interaction with store data through GraphQL
 
 ## Features
 
-- **Product Management**: Search and retrieve product information
+- **Product Management**: Full CRUD for products, variants, and options
 - **Customer Management**: Load customer data and manage customer tags
 - **Order Management**: Advanced order querying and filtering
 - **GraphQL Integration**: Direct integration with Shopify's GraphQL Admin API
@@ -175,15 +175,85 @@ shopify-mcp --clientId=<ID> --clientSecret=<SECRET> --domain=<YOUR_SHOP>.myshopi
    - Inputs:
      - `productId` (string): ID of the product to retrieve
 
-3. `createProduct`
-    - Create new product in store
-    - Inputs:
-        - `title` (string): Title of the product
-        - `descriptionHtml` (string): Description of the product
-        - `vendor` (string): Vendor of the product
-        - `productType` (string): Type of the product
-        - `tags` (string): Tags of the product
-        - `status` (string): Status of the product "ACTIVE", "DRAFT", "ARCHIVED". Default "DRAFT"
+3. `create-product`
+
+   - Create a new product. When using `productOptions`, Shopify registers all option values but only creates one default variant (first value of each option, price $0). Use `manage-product-variants` with `strategy: REMOVE_STANDALONE_VARIANT` afterward to create all real variants with prices.
+   - Inputs:
+     - `title` (string, required): Title of the product
+     - `descriptionHtml` (string, optional): Description with HTML
+     - `handle` (string, optional): URL slug. Auto-generated from title if omitted
+     - `vendor` (string, optional): Vendor of the product
+     - `productType` (string, optional): Type of the product
+     - `tags` (array of strings, optional): Product tags
+     - `status` (string, optional): `"ACTIVE"`, `"DRAFT"`, or `"ARCHIVED"`. Default `"DRAFT"`
+     - `seo` (object, optional): `{ title, description }` for search engines
+     - `metafields` (array of objects, optional): Custom metafields (`namespace`, `key`, `value`, `type`)
+     - `productOptions` (array of objects, optional): Options to create inline, e.g. `[{ name: "Size", values: [{ name: "S" }, { name: "M" }] }]`. Max 3 options.
+     - `collectionsToJoin` (array of strings, optional): Collection GIDs to add the product to
+
+4. `update-product`
+
+   - Update an existing product's fields
+   - Inputs:
+     - `id` (string, required): Shopify product GID
+     - `title` (string, optional): New title
+     - `descriptionHtml` (string, optional): New description
+     - `handle` (string, optional): New URL slug
+     - `vendor` (string, optional): New vendor
+     - `productType` (string, optional): New product type
+     - `tags` (array of strings, optional): New tags (overwrites existing)
+     - `status` (string, optional): `"ACTIVE"`, `"DRAFT"`, or `"ARCHIVED"`
+     - `seo` (object, optional): `{ title, description }` for search engines
+     - `metafields` (array of objects, optional): Metafields to set or update
+     - `collectionsToJoin` (array of strings, optional): Collection GIDs to add the product to
+     - `collectionsToLeave` (array of strings, optional): Collection GIDs to remove the product from
+     - `redirectNewHandle` (boolean, optional): If true, old handle redirects to new handle
+
+5. `delete-product`
+
+   - Delete a product
+   - Inputs:
+     - `id` (string, required): Shopify product GID
+
+6. `manage-product-options`
+
+   - Create, update, or delete product options (e.g. Size, Color)
+   - Inputs:
+     - `productId` (string, required): Shopify product GID
+     - `action` (string, required): `"create"`, `"update"`, or `"delete"`
+     - For `action: "create"`:
+       - `options` (array, required): Options to create, e.g. `[{ name: "Size", values: ["S", "M", "L"] }]`
+     - For `action: "update"`:
+       - `optionId` (string, required): Option GID to update
+       - `name` (string, optional): New name for the option
+       - `position` (number, optional): New position
+       - `valuesToAdd` (array of strings, optional): Values to add
+       - `valuesToDelete` (array of strings, optional): Value GIDs to remove
+     - For `action: "delete"`:
+       - `optionIds` (array of strings, required): Option GIDs to delete
+
+7. `manage-product-variants`
+
+   - Create or update product variants in bulk
+   - Inputs:
+     - `productId` (string, required): Shopify product GID
+     - `strategy` (string, optional): How to handle the default variant when creating. `"DEFAULT"` (removes "Default Title" automatically), `"REMOVE_STANDALONE_VARIANT"` (recommended for full control), or `"PRESERVE_STANDALONE_VARIANT"`
+     - `variants` (array, required): Variants to create or update. Each variant:
+       - `id` (string, optional): Variant GID for updates. Omit to create new
+       - `price` (string, optional): Price, e.g. `"49.00"`
+       - `compareAtPrice` (string, optional): Compare-at price for showing discounts
+       - `sku` (string, optional): SKU (mapped to `inventoryItem.sku`)
+       - `tracked` (boolean, optional): Whether inventory is tracked. Set `false` for print-on-demand
+       - `taxable` (boolean, optional): Whether the variant is taxable
+       - `barcode` (string, optional): Barcode
+       - `optionValues` (array, optional): Option values, e.g. `[{ optionName: "Size", name: "A4" }]`
+
+8. `delete-product-variants`
+
+   - Delete one or more variants from a product
+   - Inputs:
+     - `productId` (string, required): Shopify product GID
+     - `variantIds` (array of strings, required): Variant GIDs to delete
 
 ### Customer Management
 1. `get-customers`
