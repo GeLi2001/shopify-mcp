@@ -4,7 +4,7 @@
 
 MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
 
-**📦 Package Name: `shopify-mcp`**  
+**📦 Package Name: `shopify-mcp`**
 **🚀 Command: `shopify-mcp` (NOT `shopify-mcp-server`)**
 
 <a href="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp">
@@ -21,33 +21,58 @@ MCP Server for Shopify API, enabling interaction with store data through GraphQL
 
 ## Prerequisites
 
-1. Node.js (version 16 or higher)
-2. Shopify Custom App Access Token (see setup instructions below)
+1. Node.js (version 18 or higher)
+2. A Shopify store with a custom app (see setup instructions below)
 
 ## Setup
 
-### Shopify Access Token
+### Authentication
 
-To use this MCP server, you'll need to create a custom app in your Shopify store:
+This server supports two authentication methods:
+
+#### Option 1: Client Credentials (Dev Dashboard apps, January 2026+)
+
+As of January 1, 2026, new Shopify apps are created in the **Dev Dashboard** and use OAuth client credentials instead of static access tokens.
 
 1. From your Shopify admin, go to **Settings** > **Apps and sales channels**
-2. Click **Develop apps** (you may need to enable developer preview first)
-3. Click **Create an app**
-4. Set a name for your app (e.g., "Shopify MCP Server")
-5. Click **Configure Admin API scopes**
-6. Select the following scopes:
+2. Click **Develop apps** > **Build app in dev dashboard**
+3. Create a new app and configure **Admin API scopes**:
    - `read_products`, `write_products`
    - `read_customers`, `write_customers`
    - `read_orders`, `write_orders`
-7. Click **Save**
-8. Click **Install app**
-9. Click **Install** to give the app access to your store data
-10. After installation, you'll see your **Admin API access token**
-11. Copy this token - you'll need it for configuration
+4. Install the app on your store
+5. Copy your **Client ID** and **Client Secret** from the app's API credentials
+
+The server will automatically exchange these for an access token and refresh it before it expires (tokens are valid for ~24 hours).
+
+#### Option 2: Static Access Token (legacy apps)
+
+If you have an existing custom app with a static `shpat_` access token, you can still use it directly.
 
 ### Usage with Claude Desktop
 
-Add this to your `claude_desktop_config.json`:
+**Client Credentials (recommended):**
+
+```json
+{
+  "mcpServers": {
+    "shopify": {
+      "command": "npx",
+      "args": [
+        "shopify-mcp",
+        "--clientId",
+        "<YOUR_CLIENT_ID>",
+        "--clientSecret",
+        "<YOUR_CLIENT_SECRET>",
+        "--domain",
+        "<YOUR_SHOP>.myshopify.com"
+      ]
+    }
+  }
+}
+```
+
+**Static Access Token (legacy):**
 
 ```json
 {
@@ -71,12 +96,39 @@ Locations for the Claude Desktop config file:
 - MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
+### Usage with Claude Code
+
+**Client Credentials:**
+
+```bash
+claude mcp add shopify -- npx shopify-mcp \
+  --clientId YOUR_CLIENT_ID \
+  --clientSecret YOUR_CLIENT_SECRET \
+  --domain your-store.myshopify.com
+```
+
+**Static Access Token (legacy):**
+
+```bash
+claude mcp add shopify -- npx shopify-mcp \
+  --accessToken YOUR_ACCESS_TOKEN \
+  --domain your-store.myshopify.com
+```
+
 ### Alternative: Run Locally with Environment Variables
 
 If you prefer to use environment variables instead of command-line arguments:
 
 1. Create a `.env` file with your Shopify credentials:
 
+   **Client Credentials:**
+   ```
+   SHOPIFY_CLIENT_ID=your_client_id
+   SHOPIFY_CLIENT_SECRET=your_client_secret
+   MYSHOPIFY_DOMAIN=your-store.myshopify.com
+   ```
+
+   **Static Access Token (legacy):**
    ```
    SHOPIFY_ACCESS_TOKEN=your_access_token
    MYSHOPIFY_DOMAIN=your-store.myshopify.com
@@ -98,8 +150,12 @@ npm install -g shopify-mcp
 Then run it:
 
 ```
-shopify-mcp --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
+shopify-mcp --clientId=<ID> --clientSecret=<SECRET> --domain=<YOUR_SHOP>.myshopify.com
 ```
+
+### Additional Options
+
+- `--apiVersion`: Specify the Shopify API version (default: `2026-01`). Can also be set via `SHOPIFY_API_VERSION` environment variable.
 
 **⚠️ Important:** If you see errors about "SHOPIFY_ACCESS_TOKEN environment variable is required" when using command-line arguments, you might have a different package installed. Make sure you're using `shopify-mcp`, not `shopify-mcp-server`.
 
@@ -120,7 +176,7 @@ shopify-mcp --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
      - `productId` (string): ID of the product to retrieve
 
 3. `createProduct`
-    - Create new product in store 
+    - Create new product in store
     - Inputs:
         - `title` (string): Title of the product
         - `descriptionHtml` (string): Description of the product
