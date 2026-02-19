@@ -17,6 +17,11 @@ import { getProducts } from "./tools/getProducts.js";
 import { updateCustomer } from "./tools/updateCustomer.js";
 import { updateOrder } from "./tools/updateOrder.js";
 import { createProduct } from "./tools/createProduct.js";
+import { updateProduct } from "./tools/updateProduct.js";
+import { manageProductVariants } from "./tools/manageProductVariants.js";
+import { deleteProductVariants } from "./tools/deleteProductVariants.js";
+import { deleteProduct } from "./tools/deleteProduct.js";
+import { manageProductOptions } from "./tools/manageProductOptions.js";
 import { ShopifyAuth } from "./lib/shopifyAuth.js";
 
 // Parse command line arguments
@@ -102,6 +107,11 @@ updateOrder.initialize(shopifyClient);
 getCustomerOrders.initialize(shopifyClient);
 updateCustomer.initialize(shopifyClient);
 createProduct.initialize(shopifyClient);
+updateProduct.initialize(shopifyClient);
+manageProductVariants.initialize(shopifyClient);
+deleteProductVariants.initialize(shopifyClient);
+deleteProduct.initialize(shopifyClient);
+manageProductOptions.initialize(shopifyClient);
 
 // Set up MCP server
 const server = new McpServer({
@@ -299,6 +309,135 @@ server.tool(
     const result = await createProduct.execute(args);
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  }
+);
+
+// Add the updateProduct tool
+server.tool(
+  "update-product",
+  {
+    id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
+    title: z.string().optional(),
+    descriptionHtml: z.string().optional(),
+    vendor: z.string().optional(),
+    productType: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).optional(),
+    metafields: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          namespace: z.string().optional(),
+          key: z.string().optional(),
+          value: z.string(),
+          type: z.string().optional(),
+        })
+      )
+      .optional(),
+  },
+  async (args) => {
+    const result = await updateProduct.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  }
+);
+
+// Add the manageProductVariants tool
+server.tool(
+  "manage-product-variants",
+  {
+    productId: z.string().min(1).describe("Shopify product GID"),
+    variants: z
+      .array(
+        z.object({
+          id: z.string().optional().describe("Variant GID for updates. Omit to create new."),
+          price: z.string().optional().describe("Price as string, e.g. '49.00'"),
+          sku: z.string().optional(),
+          optionValues: z
+            .array(
+              z.object({
+                optionName: z.string().describe("Option name, e.g. 'Size'"),
+                name: z.string().describe("Option value, e.g. '8x10'"),
+              })
+            )
+            .optional(),
+        })
+      )
+      .min(1)
+      .describe("Variants to create or update"),
+    strategy: z
+      .enum(["DEFAULT", "REMOVE_STANDALONE_VARIANT", "PRESERVE_STANDALONE_VARIANT"])
+      .optional()
+      .describe(
+        "How to handle the Default Title variant when creating. DEFAULT removes it automatically."
+      ),
+  },
+  async (args) => {
+    const result = await manageProductVariants.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  }
+);
+
+// Add the manageProductOptions tool
+server.tool(
+  "manage-product-options",
+  {
+    productId: z.string().min(1).describe("Shopify product GID"),
+    action: z.enum(["create", "update", "delete"]),
+    options: z
+      .array(
+        z.object({
+          name: z.string().describe("Option name, e.g. 'Size'"),
+          position: z.number().optional(),
+          values: z.array(z.string()).optional().describe("Option values, e.g. ['A4', 'A3']"),
+        })
+      )
+      .optional()
+      .describe("Options to create (action=create)"),
+    optionId: z.string().optional().describe("Option GID to update (action=update)"),
+    name: z.string().optional().describe("New name for the option (action=update)"),
+    position: z.number().optional().describe("New position (action=update)"),
+    valuesToAdd: z.array(z.string()).optional().describe("Values to add (action=update)"),
+    valuesToDelete: z.array(z.string()).optional().describe("Value GIDs to delete (action=update)"),
+    optionIds: z.array(z.string()).optional().describe("Option GIDs to delete (action=delete)"),
+  },
+  async (args) => {
+    const result = await manageProductOptions.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  }
+);
+
+// Add the deleteProduct tool
+server.tool(
+  "delete-product",
+  {
+    id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
+  },
+  async (args) => {
+    const result = await deleteProduct.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  }
+);
+
+// Add the deleteProductVariants tool
+server.tool(
+  "delete-product-variants",
+  {
+    productId: z.string().min(1).describe("Shopify product GID"),
+    variantIds: z.array(z.string().min(1)).min(1).describe("Array of variant GIDs to delete"),
+  },
+  async (args) => {
+    const result = await deleteProductVariants.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
     };
   }
 );
