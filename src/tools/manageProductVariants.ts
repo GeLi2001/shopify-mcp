@@ -11,7 +11,11 @@ const VariantOptionSchema = z.object({
 const VariantSchema = z.object({
   id: z.string().optional().describe("Variant GID for updates. Omit to create new."),
   price: z.string().optional().describe("Price as string, e.g. '49.00'"),
+  compareAtPrice: z.string().optional().describe("Compare-at price for showing discounts, e.g. '79.00'"),
   sku: z.string().optional().describe("SKU for the variant (mapped to inventoryItem.sku)"),
+  tracked: z.boolean().optional().describe("Whether inventory is tracked. Set false for print-on-demand."),
+  taxable: z.boolean().optional().describe("Whether the variant is taxable"),
+  barcode: z.string().optional(),
   optionValues: z.array(VariantOptionSchema).optional(),
 });
 
@@ -88,7 +92,14 @@ const manageProductVariants = {
         const createVariants = toCreate.map((v) => {
           const variant: Record<string, any> = {};
           if (v.price) variant.price = v.price;
-          if (v.sku) variant.inventoryItem = { sku: v.sku };
+          if (v.compareAtPrice) variant.compareAtPrice = v.compareAtPrice;
+          if (v.barcode) variant.barcode = v.barcode;
+          if (v.taxable !== undefined) variant.taxable = v.taxable;
+          // sku and tracked both go under inventoryItem
+          const inventoryItem: Record<string, any> = {};
+          if (v.sku) inventoryItem.sku = v.sku;
+          if (v.tracked !== undefined) inventoryItem.tracked = v.tracked;
+          if (Object.keys(inventoryItem).length > 0) variant.inventoryItem = inventoryItem;
           if (v.optionValues) {
             variant.optionValues = v.optionValues.map((ov) => ({
               optionName: ov.optionName,
@@ -159,7 +170,13 @@ const manageProductVariants = {
         const updateVariants = toUpdate.map((v) => {
           const variant: Record<string, any> = { id: v.id };
           if (v.price) variant.price = v.price;
-          if (v.sku) variant.inventoryItem = { sku: v.sku };
+          if (v.compareAtPrice) variant.compareAtPrice = v.compareAtPrice;
+          if (v.barcode) variant.barcode = v.barcode;
+          if (v.taxable !== undefined) variant.taxable = v.taxable;
+          const inventoryItem: Record<string, any> = {};
+          if (v.sku) inventoryItem.sku = v.sku;
+          if (v.tracked !== undefined) inventoryItem.tracked = v.tracked;
+          if (Object.keys(inventoryItem).length > 0) variant.inventoryItem = inventoryItem;
           if (v.optionValues) {
             variant.optionValues = v.optionValues.map((ov) => ({
               optionName: ov.optionName,

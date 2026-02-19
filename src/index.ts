@@ -300,10 +300,38 @@ server.tool(
   {
     title: z.string().min(1),
     descriptionHtml: z.string().optional(),
+    handle: z.string().optional().describe("URL slug. Auto-generated from title if omitted."),
     vendor: z.string().optional(),
     productType: z.string().optional(),
     tags: z.array(z.string()).optional(),
     status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).default("DRAFT"),
+    seo: z
+      .object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+      })
+      .optional()
+      .describe("SEO title and description"),
+    metafields: z
+      .array(
+        z.object({
+          namespace: z.string(),
+          key: z.string(),
+          value: z.string(),
+          type: z.string().describe("e.g. 'single_line_text_field', 'json', 'number_integer'"),
+        })
+      )
+      .optional(),
+    productOptions: z
+      .array(
+        z.object({
+          name: z.string().describe("Option name, e.g. 'Size'"),
+          values: z.array(z.object({ name: z.string() })).optional(),
+        })
+      )
+      .optional()
+      .describe("Product options to create inline (max 3)"),
+    collectionsToJoin: z.array(z.string()).optional().describe("Collection GIDs to add product to"),
   },
   async (args) => {
     const result = await createProduct.execute(args);
@@ -320,10 +348,18 @@ server.tool(
     id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
     title: z.string().optional(),
     descriptionHtml: z.string().optional(),
+    handle: z.string().optional().describe("URL slug for the product"),
     vendor: z.string().optional(),
     productType: z.string().optional(),
     tags: z.array(z.string()).optional(),
     status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).optional(),
+    seo: z
+      .object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+      })
+      .optional()
+      .describe("SEO title and description"),
     metafields: z
       .array(
         z.object({
@@ -335,6 +371,9 @@ server.tool(
         })
       )
       .optional(),
+    collectionsToJoin: z.array(z.string()).optional().describe("Collection GIDs to add product to"),
+    collectionsToLeave: z.array(z.string()).optional().describe("Collection GIDs to remove product from"),
+    redirectNewHandle: z.boolean().optional().describe("If true, old handle redirects to new handle"),
   },
   async (args) => {
     const result = await updateProduct.execute(args);
@@ -354,7 +393,11 @@ server.tool(
         z.object({
           id: z.string().optional().describe("Variant GID for updates. Omit to create new."),
           price: z.string().optional().describe("Price as string, e.g. '49.00'"),
-          sku: z.string().optional(),
+          compareAtPrice: z.string().optional().describe("Compare-at price for showing discounts"),
+          sku: z.string().optional().describe("SKU (mapped to inventoryItem.sku)"),
+          tracked: z.boolean().optional().describe("Whether inventory is tracked. Set false for print-on-demand."),
+          taxable: z.boolean().optional(),
+          barcode: z.string().optional(),
           optionValues: z
             .array(
               z.object({

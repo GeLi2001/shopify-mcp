@@ -7,10 +7,18 @@ const UpdateProductInputSchema = z.object({
   id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
   title: z.string().optional(),
   descriptionHtml: z.string().optional(),
+  handle: z.string().optional().describe("URL slug for the product"),
   vendor: z.string().optional(),
   productType: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).optional(),
+  seo: z
+    .object({
+      title: z.string().optional(),
+      description: z.string().optional(),
+    })
+    .optional()
+    .describe("SEO title and description for search engines"),
   metafields: z
     .array(
       z.object({
@@ -22,6 +30,9 @@ const UpdateProductInputSchema = z.object({
       })
     )
     .optional(),
+  collectionsToJoin: z.array(z.string()).optional().describe("Collection GIDs to add the product to"),
+  collectionsToLeave: z.array(z.string()).optional().describe("Collection GIDs to remove the product from"),
+  redirectNewHandle: z.boolean().optional().describe("If true, old handle redirects to new handle"),
 });
 
 type UpdateProductInput = z.infer<typeof UpdateProductInputSchema>;
@@ -48,11 +59,16 @@ const updateProduct = {
             product {
               id
               title
+              handle
               descriptionHtml
               vendor
               productType
               status
               tags
+              seo {
+                title
+                description
+              }
               metafields(first: 10) {
                 edges {
                   node {
@@ -114,11 +130,13 @@ const updateProduct = {
         product: {
           id: product.id,
           title: product.title,
+          handle: product.handle,
           descriptionHtml: product.descriptionHtml,
           vendor: product.vendor,
           productType: product.productType,
           status: product.status,
           tags: product.tags,
+          seo: product.seo,
           metafields: product.metafields?.edges.map((e: any) => e.node) || [],
           variants: product.variants?.edges.map((e: any) => ({
             id: e.node.id,
