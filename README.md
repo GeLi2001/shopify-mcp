@@ -77,6 +77,36 @@ If you have an existing custom app with a static `shpat_` access token, you can 
 }
 ```
 
+**Optional local guardrail:**
+
+To inspect tool-call arguments locally before they reach the Shopify MCP server,
+wrap the command with [Armorer Guard](https://github.com/ArmorerLabs/Armorer-Guard):
+
+```json
+{
+  "mcpServers": {
+    "shopify": {
+      "command": "armorer-guard",
+      "args": [
+        "mcp-proxy",
+        "--",
+        "npx",
+        "shopify-mcp",
+        "--clientId",
+        "<YOUR_CLIENT_ID>",
+        "--clientSecret",
+        "<YOUR_CLIENT_SECRET>",
+        "--domain",
+        "<YOUR_SHOP>.myshopify.com"
+      ]
+    }
+  }
+}
+```
+
+Armorer Guard runs locally and forwards safe MCP calls unchanged while blocking
+prompt injection, credential leakage, exfiltration risk, and dangerous actions.
+
 **Static Access Token (legacy):**
 
 ```json
