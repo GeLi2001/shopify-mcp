@@ -1,11 +1,12 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection } from "../lib/toolUtils.js";
+import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
 import { formatLineItems, formatOrderSummary } from "../lib/formatters.js";
 
-/** Map of selectable field names → GraphQL fragments for order-by-id */
-const ORDER_BY_ID_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for order-by-id */
+const orderByIdProjection = defineProjection({
   id: "id",
   name: "name",
   createdAt: "createdAt",
@@ -30,9 +31,7 @@ const ORDER_BY_ID_FIELD_MAP: Record<string, string> = {
   poNumber: "poNumber",
   discountCodes: "discountCodes",
   metafields: "metafields(first: 20) { edges { node { id namespace key value type } } }",
-};
-
-const AVAILABLE_ORDER_BY_ID_FIELDS = Object.keys(ORDER_BY_ID_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getOrderById
 const GetOrderByIdInputSchema = z.object({
@@ -42,16 +41,7 @@ const GetOrderByIdInputSchema = z.object({
     .describe(
       "Accepts order numbers (e.g. 77713), numeric IDs, or full GIDs (gid://shopify/Order/...)",
     ),
-  fields: z
-    .array(z.enum(AVAILABLE_ORDER_BY_ID_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"tags\"] returns only GID and tags. " +
-      `Available: ${AVAILABLE_ORDER_BY_ID_FIELDS.join(", ")}`,
-    ),
+  fields: orderByIdProjection.fieldsParam({ noun: "order" }),
 });
 
 type GetOrderByIdInput = z.infer<typeof GetOrderByIdInputSchema>;
@@ -110,12 +100,10 @@ const getOrderById = {
         resolvedId = trimmed;
       }
 
-      const fieldSelection = buildFieldSelection(ORDER_BY_ID_FIELD_MAP, fields);
-
       const query = `
         query GetOrderById($id: ID!) {
           order(id: $id) {
-            ${fieldSelection}
+            ${orderByIdProjection.selection(fields)}
           }
         }
       `;
@@ -136,13 +124,7 @@ const getOrderById = {
 
       // When custom fields are specified, return raw nodes (run edgesToNodes on connection fields)
       if (fields) {
-        const result: any = { ...order };
-        if (result.lineItems) {
-          result.lineItems = edgesToNodes(result.lineItems);
-        }
-        if (result.metafields) {
-          result.metafields = edgesToNodes(result.metafields);
-        }
+        const result: any = orderByIdProjection.normalize(order);
         return { order: result };
       }
 

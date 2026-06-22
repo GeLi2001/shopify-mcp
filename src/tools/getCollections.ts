@@ -1,9 +1,10 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { edgesToNodes, handleToolError, buildFieldSelection } from "../lib/toolUtils.js";
+import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for collections */
-const COLLECTION_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for collections */
+const collectionProjection = defineProjection({
   id: "id",
   title: "title",
   handle: "handle",
@@ -15,9 +16,7 @@ const COLLECTION_FIELD_MAP: Record<string, string> = {
   ruleSet: "ruleSet { appliedDisjunctively rules { column relation condition } }",
   image: "image { url altText }",
   seo: "seo { title description }",
-};
-
-const AVAILABLE_COLLECTION_FIELDS = Object.keys(COLLECTION_FIELD_MAP) as [string, ...string[]];
+});
 
 const GetCollectionsInputSchema = z.object({
   first: z
@@ -33,16 +32,7 @@ const GetCollectionsInputSchema = z.object({
     .describe(
       "Search query to filter collections (e.g. 'title:Summer' or 'collection_type:smart')",
     ),
-  fields: z
-    .array(z.enum(AVAILABLE_COLLECTION_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"title\"] returns only collection GID and title. " +
-      `Available: ${AVAILABLE_COLLECTION_FIELDS.join(", ")}`,
-    ),
+  fields: collectionProjection.fieldsParam({ noun: "collection" }),
 });
 type GetCollectionsInput = z.infer<typeof GetCollectionsInputSchema>;
 
@@ -60,14 +50,12 @@ const getCollections = {
 
   execute: async (input: GetCollectionsInput) => {
     try {
-      const fieldSelection = buildFieldSelection(COLLECTION_FIELD_MAP, input.fields);
-
       const query = `
         query GetCollections($first: Int!, $query: String) {
           collections(first: $first, query: $query) {
             edges {
               node {
-                ${fieldSelection}
+                ${collectionProjection.selection(input.fields)}
               }
             }
             pageInfo {

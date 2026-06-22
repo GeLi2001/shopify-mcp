@@ -1,9 +1,10 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection } from "../lib/toolUtils.js";
+import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for customer-by-id */
-const CUSTOMER_BY_ID_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for customer-by-id */
+const customerByIdProjection = defineProjection({
   id: "id",
   firstName: "firstName",
   lastName: "lastName",
@@ -19,23 +20,12 @@ const CUSTOMER_BY_ID_FIELD_MAP: Record<string, string> = {
   amountSpent: "amountSpent { amount currencyCode }",
   numberOfOrders: "numberOfOrders",
   metafields: "metafields(first: 10) { edges { node { id namespace key value } } }",
-};
-
-const AVAILABLE_CUSTOMER_BY_ID_FIELDS = Object.keys(CUSTOMER_BY_ID_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getting a customer by ID
 const GetCustomerByIdInputSchema = z.object({
   id: z.string().regex(/^\d+$/, "Customer ID must be numeric").describe("Numeric customer ID (e.g. 7832529321). Do not pass a full GID."),
-  fields: z
-    .array(z.enum(AVAILABLE_CUSTOMER_BY_ID_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"email\"] returns only GID and email. " +
-      `Available: ${AVAILABLE_CUSTOMER_BY_ID_FIELDS.join(", ")}`,
-    ),
+  fields: customerByIdProjection.fieldsParam({ noun: "customer" }),
 });
 
 type GetCustomerByIdInput = z.infer<typeof GetCustomerByIdInputSchema>;
@@ -60,12 +50,10 @@ const getCustomerById = {
       // Convert numeric ID to GID format
       const customerGid = `gid://shopify/Customer/${id}`;
 
-      const fieldSelection = buildFieldSelection(CUSTOMER_BY_ID_FIELD_MAP, fields);
-
       const query = `
         query GetCustomerById($id: ID!) {
           customer(id: $id) {
-            ${fieldSelection}
+            ${customerByIdProjection.selection(fields)}
           }
         }
       `;
@@ -86,13 +74,10 @@ const getCustomerById = {
 
       // When custom fields are specified, return raw nodes (run edgesToNodes on connection fields)
       if (fields) {
-        const result: any = { ...customer };
+        const result: any = customerByIdProjection.normalize(customer);
         if (result.addressesV2) {
-          result.addresses = edgesToNodes(result.addressesV2);
+          result.addresses = result.addressesV2;
           delete result.addressesV2;
-        }
-        if (result.metafields) {
-          result.metafields = edgesToNodes(result.metafields);
         }
         return { customer: result };
       }

@@ -1,10 +1,11 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
-import { edgesToNodes, handleToolError, buildFieldSelection } from "../lib/toolUtils.js";
+import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for collection-by-id */
-const COLLECTION_BY_ID_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for collection-by-id */
+const collectionByIdProjection = defineProjection({
   id: "id",
   title: "title",
   handle: "handle",
@@ -16,9 +17,7 @@ const COLLECTION_BY_ID_FIELD_MAP: Record<string, string> = {
   ruleSet: "ruleSet { appliedDisjunctively rules { column relation condition } }",
   image: "image { url altText width height }",
   seo: "seo { title description }",
-};
-
-const AVAILABLE_COLLECTION_BY_ID_FIELDS = Object.keys(COLLECTION_BY_ID_FIELD_MAP) as [string, ...string[]];
+});
 
 const GetCollectionByIdInputSchema = z.object({
   collectionId: z
@@ -36,17 +35,10 @@ const GetCollectionByIdInputSchema = z.object({
     .describe(
       "Number of products to include (default 25, max 100, 0 to skip products)",
     ),
-  fields: z
-    .array(z.enum(AVAILABLE_COLLECTION_BY_ID_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed collection-level fields will be fetched. 'id' is always included. " +
-      "Products are controlled separately via 'productsFirst'. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"title\"] returns only GID and title. " +
-      `Available: ${AVAILABLE_COLLECTION_BY_ID_FIELDS.join(", ")}`,
-    ),
+  fields: collectionByIdProjection.fieldsParam({
+    noun: "collection",
+    extra: "Products are controlled separately via 'productsFirst'.",
+  }),
 });
 type GetCollectionByIdInput = z.infer<typeof GetCollectionByIdInputSchema>;
 
@@ -72,7 +64,7 @@ const getCollectionById = {
 
       // When fields is set, use field selection for collection-level fields
       if (fields) {
-        const fieldSelection = buildFieldSelection(COLLECTION_BY_ID_FIELD_MAP, fields);
+        const fieldSelection = collectionByIdProjection.selection(fields);
 
         // Append products block separately if productsFirst > 0
         const productsBlock = productsFirst > 0 ? `

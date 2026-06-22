@@ -1,9 +1,10 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection } from "../lib/toolUtils.js";
+import { handleToolError } from "../lib/toolUtils.js";
+import { defineProjection, countOnlyParam } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for products */
-const PRODUCT_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for products */
+const productProjection = defineProjection({
   id: "id",
   title: "title",
   description: "description",
@@ -15,9 +16,7 @@ const PRODUCT_FIELD_MAP: Record<string, string> = {
   priceRange: "priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }",
   media: "media(first: 1) { edges { node { ... on MediaImage { id image { url altText } } } } }",
   variants: "variants(first: 5) { edges { node { id title price inventoryQuantity sku } } }",
-};
-
-const AVAILABLE_PRODUCT_FIELDS = Object.keys(PRODUCT_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getProducts
 const GetProductsInputSchema = z.object({
@@ -32,24 +31,8 @@ const GetProductsInputSchema = z.object({
   ]).optional().describe("Sort key for products"),
   reverse: z.boolean().optional().describe("Reverse the sort order"),
   query: z.string().optional().describe("Raw query string for advanced filtering (e.g. 'status:active vendor:Nike tag:sale')"),
-  fields: z
-    .array(z.enum(AVAILABLE_PRODUCT_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"title\"] returns only product GID and title. " +
-      `Available: ${AVAILABLE_PRODUCT_FIELDS.join(", ")}`,
-    ),
-  countOnly: z
-    .boolean()
-    .optional()
-    .describe(
-      "IMPORTANT: Use this to check result set size before fetching data. " +
-      "Returns only { count: N } without any resource data, saving significant context. " +
-      "Recommended before paginating large result sets.",
-    ),
+  fields: productProjection.fieldsParam({ noun: "product" }),
+  countOnly: countOnlyParam(),
 });
 
 type GetProductsInput = z.infer<typeof GetProductsInputSchema>;
@@ -94,14 +77,12 @@ const getProducts = {
         return { count: countData.productsCount.count };
       }
 
-      const fieldSelection = buildFieldSelection(PRODUCT_FIELD_MAP, fields);
-
       const query = `
         query GetProducts($first: Int!, $query: String, $after: String, $before: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
           products(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {
               node {
-                ${fieldSelection}
+                ${productProjection.selection(fields)}
               }
             }
             pageInfo {
@@ -130,22 +111,13 @@ const getProducts = {
       // When custom fields are specified, flatten connection fields to match default format
       if (fields) {
         const products = data.products.edges.map((edge: any) => {
-          const product: any = { ...edge.node };
-          if (product.variants) {
-            product.variants = edgesToNodes(product.variants);
-          }
-          if (product.media) {
-            product.media = edgesToNodes(product.media);
-          }
+          const product: any = productProjection.normalize(edge.node);
           if (product.priceRangeV2) {
             product.priceRange = {
               minPrice: product.priceRangeV2.minVariantPrice,
               maxPrice: product.priceRangeV2.maxVariantPrice,
             };
             delete product.priceRangeV2;
-          }
-          if (product.collections) {
-            product.collections = edgesToNodes(product.collections);
           }
           return product;
         });

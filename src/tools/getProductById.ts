@@ -1,9 +1,10 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection } from "../lib/toolUtils.js";
+import { handleToolError } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for product-by-id */
-const PRODUCT_BY_ID_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for product-by-id */
+const productByIdProjection = defineProjection({
   id: "id",
   title: "title",
   description: "description",
@@ -22,23 +23,12 @@ const PRODUCT_BY_ID_FIELD_MAP: Record<string, string> = {
   tags: "tags",
   vendor: "vendor",
   productType: "productType",
-};
-
-const AVAILABLE_PRODUCT_BY_ID_FIELDS = Object.keys(PRODUCT_BY_ID_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getProductById
 const GetProductByIdInputSchema = z.object({
   productId: z.string().min(1).describe("The product ID (e.g. gid://shopify/Product/123 or just 123)"),
-  fields: z
-    .array(z.enum(AVAILABLE_PRODUCT_BY_ID_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"title\"] returns only GID and title. " +
-      `Available: ${AVAILABLE_PRODUCT_BY_ID_FIELDS.join(", ")}`,
-    ),
+  fields: productByIdProjection.fieldsParam({ noun: "product" }),
 });
 
 type GetProductByIdInput = z.infer<typeof GetProductByIdInputSchema>;
@@ -60,12 +50,10 @@ const getProductById = {
     try {
       const { productId, fields } = input;
 
-      const fieldSelection = buildFieldSelection(PRODUCT_BY_ID_FIELD_MAP, fields);
-
       const query = `
         query GetProductById($id: ID!) {
           product(id: $id) {
-            ${fieldSelection}
+            ${productByIdProjection.selection(fields)}
           }
         }
       `;
@@ -86,16 +74,7 @@ const getProductById = {
 
       // When custom fields are specified, return raw nodes (run edgesToNodes on connection fields)
       if (fields) {
-        const result: any = { ...product };
-        if (result.media) {
-          result.media = edgesToNodes(result.media);
-        }
-        if (result.variants) {
-          result.variants = edgesToNodes(result.variants);
-        }
-        if (result.collections) {
-          result.collections = edgesToNodes(result.collections);
-        }
+        const result: any = productByIdProjection.normalize(product);
         return { product: result };
       }
 

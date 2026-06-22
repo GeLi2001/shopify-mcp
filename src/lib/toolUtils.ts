@@ -78,22 +78,6 @@ export function edgesToNodes<T>(connection: ShopifyConnection<T>): T[] {
 }
 
 /**
- * Build a GraphQL field selection string from a field map and optional field list.
- * Always includes 'id'. When fields is undefined, includes all available fields.
- */
-export function buildFieldSelection(
-  fieldMap: Record<string, string>,
-  fields?: string[],
-): string {
-  const selected = fields ?? Object.keys(fieldMap);
-  const fieldSet = new Set(["id", ...selected]);
-  return [...fieldSet]
-    .map((f) => fieldMap[f])
-    .filter(Boolean)
-    .join("\n                ");
-}
-
-/**
  * Extract shopMoney from a Shopify MoneyBag (e.g. totalPriceSet.shopMoney).
  */
 export function shopMoney(

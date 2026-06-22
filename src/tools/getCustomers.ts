@@ -1,9 +1,10 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection } from "../lib/toolUtils.js";
+import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
+import { defineProjection, countOnlyParam } from "../lib/projection.js";
 
-/** Map of selectable field names → GraphQL fragments for customers */
-const CUSTOMER_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for customers */
+const customerProjection = defineProjection({
   id: "id",
   firstName: "firstName",
   lastName: "lastName",
@@ -16,9 +17,7 @@ const CUSTOMER_FIELD_MAP: Record<string, string> = {
   addresses: "addressesV2(first: 10) { edges { node { address1 address2 city provinceCode zip country phone } } }",
   amountSpent: "amountSpent { amount currencyCode }",
   numberOfOrders: "numberOfOrders",
-};
-
-const AVAILABLE_CUSTOMER_FIELDS = Object.keys(CUSTOMER_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getCustomers
 const GetCustomersInputSchema = z.object({
@@ -32,24 +31,8 @@ const GetCustomersInputSchema = z.object({
     "ORDERS_COUNT", "RELEVANCE", "TOTAL_SPENT", "UPDATED_AT"
   ]).optional().describe("Sort key for customers"),
   reverse: z.boolean().optional().describe("Reverse the sort order"),
-  fields: z
-    .array(z.enum(AVAILABLE_CUSTOMER_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"email\"] returns only customer GID and email. " +
-      `Available: ${AVAILABLE_CUSTOMER_FIELDS.join(", ")}`,
-    ),
-  countOnly: z
-    .boolean()
-    .optional()
-    .describe(
-      "IMPORTANT: Use this to check result set size before fetching data. " +
-      "Returns only { count: N } without any resource data, saving significant context. " +
-      "Recommended before paginating large result sets.",
-    ),
+  fields: customerProjection.fieldsParam({ noun: "customer" }),
+  countOnly: countOnlyParam(),
 });
 
 type GetCustomersInput = z.infer<typeof GetCustomersInputSchema>;
@@ -84,14 +67,12 @@ const getCustomers = {
         return { count: countData.customersCount.count };
       }
 
-      const fieldSelection = buildFieldSelection(CUSTOMER_FIELD_MAP, fields);
-
       const query = `
         query GetCustomers($first: Int!, $query: String, $after: String, $before: String, $sortKey: CustomerSortKeys, $reverse: Boolean) {
           customers(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {
               node {
-                ${fieldSelection}
+                ${customerProjection.selection(fields)}
               }
             }
             pageInfo {
@@ -120,9 +101,9 @@ const getCustomers = {
       // When custom fields are specified, return nodes with connection sub-fields flattened
       if (fields) {
         const customers = edgesToNodes(data.customers).map((customer: any) => {
-          const result: any = { ...customer };
+          const result: any = customerProjection.normalize(customer);
           if (result.addressesV2) {
-            result.addresses = edgesToNodes(result.addressesV2);
+            result.addresses = result.addressesV2;
             delete result.addressesV2;
           }
           if (result.defaultEmailAddress) {

@@ -1,10 +1,11 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
-import { handleToolError, edgesToNodes, buildFieldSelection, type ShopifyConnection } from "../lib/toolUtils.js";
+import { handleToolError, edgesToNodes, type ShopifyConnection } from "../lib/toolUtils.js";
+import { defineProjection, countOnlyParam } from "../lib/projection.js";
 import { formatOrderSummary } from "../lib/formatters.js";
 
-/** Map of selectable field names → GraphQL fragments for orders */
-const ORDER_FIELD_MAP: Record<string, string> = {
+/** Selectable fields for orders */
+const orderProjection = defineProjection({
   id: "id",
   name: "name",
   createdAt: "createdAt",
@@ -19,9 +20,7 @@ const ORDER_FIELD_MAP: Record<string, string> = {
   lineItems: "lineItems(first: 10) { edges { node { id title quantity originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }",
   tags: "tags",
   note: "note",
-};
-
-const AVAILABLE_ORDER_FIELDS = Object.keys(ORDER_FIELD_MAP) as [string, ...string[]];
+});
 
 // Input schema for getOrders
 const GetOrdersInputSchema = z.object({
@@ -37,24 +36,8 @@ const GetOrdersInputSchema = z.object({
   ]).optional().describe("Sort key for orders"),
   reverse: z.boolean().optional().describe("Reverse the sort order"),
   query: z.string().optional().describe("Raw query string for advanced filtering (e.g. 'financial_status:paid fulfillment_status:shipped')"),
-  fields: z
-    .array(z.enum(AVAILABLE_ORDER_FIELDS))
-    .optional()
-    .describe(
-      "IMPORTANT: Always specify this to minimize token usage and avoid flooding context with unnecessary data. " +
-      "Only the listed fields will be fetched from the API and returned. 'id' is always included. " +
-      "If you are unsure which fields are needed, ask the user before fetching all fields. " +
-      "Example: [\"id\", \"name\"] returns only order GID and order number. " +
-      `Available: ${AVAILABLE_ORDER_FIELDS.join(", ")}`,
-    ),
-  countOnly: z
-    .boolean()
-    .optional()
-    .describe(
-      "IMPORTANT: Use this to check result set size before fetching data. " +
-      "Returns only { count: N } without any resource data, saving significant context. " +
-      "Recommended before paginating large result sets.",
-    ),
+  fields: orderProjection.fieldsParam({ noun: "order" }),
+  countOnly: countOnlyParam(),
 });
 
 type GetOrdersInput = z.infer<typeof GetOrdersInputSchema>;
@@ -99,14 +82,12 @@ const getOrders = {
         return { count: countData.ordersCount.count };
       }
 
-      const fieldSelection = buildFieldSelection(ORDER_FIELD_MAP, fields);
-
       const query = `
         query GetOrders($first: Int!, $query: String, $after: String, $before: String, $sortKey: OrderSortKeys, $reverse: Boolean) {
           orders(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {
               node {
-                ${fieldSelection}
+                ${orderProjection.selection(fields)}
               }
             }
             pageInfo {
@@ -135,10 +116,7 @@ const getOrders = {
       // When custom fields are specified, return raw nodes with connection sub-fields flattened
       if (fields) {
         const orders = edgesToNodes(data.orders).map((order: any) => {
-          const result: any = { ...order };
-          if (result.lineItems) {
-            result.lineItems = edgesToNodes(result.lineItems);
-          }
+          const result: any = orderProjection.normalize(order);
           return result;
         });
         return {
