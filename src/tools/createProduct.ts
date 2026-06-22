@@ -66,6 +66,8 @@ const createProduct = {
   execute: async (input: CreateProductInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation productCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product {

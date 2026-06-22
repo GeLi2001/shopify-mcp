@@ -29,6 +29,8 @@ const getPriceLists = {
   execute: async (input: GetPriceListsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetPriceLists($first: Int!) {
           priceLists(first: $first) {
             edges {

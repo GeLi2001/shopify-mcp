@@ -64,6 +64,8 @@ const manageProductVariants = {
       // Bulk create new variants
       if (toCreate.length > 0) {
         const createQuery = gql`
+          #graphql
+
           mutation productVariantsBulkCreate(
             $productId: ID!
             $variants: [ProductVariantsBulkInput!]!
@@ -141,6 +143,8 @@ const manageProductVariants = {
       // Bulk update existing variants
       if (toUpdate.length > 0) {
         const updateQuery = gql`
+          #graphql
+
           mutation productVariantsBulkUpdate(
             $productId: ID!
             $variants: [ProductVariantsBulkInput!]!

@@ -31,6 +31,8 @@ const deleteCustomer = {
       const customerGid = `gid://shopify/Customer/${id}`;
 
       const query = gql`
+        #graphql
+
         mutation customerDelete($input: CustomerDeleteInput!) {
           customerDelete(input: $input) {
             deletedCustomerId

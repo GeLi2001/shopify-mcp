@@ -34,6 +34,8 @@ const manageCustomerAddress = {
         }
 
         const query = gql`
+          #graphql
+
           mutation customerAddressCreate(
             $customerId: ID!
             $address: MailingAddressInput!
@@ -88,6 +90,8 @@ const manageCustomerAddress = {
         }
 
         const query = gql`
+          #graphql
+
           mutation customerAddressUpdate(
             $customerId: ID!
             $addressId: ID!
@@ -143,6 +147,8 @@ const manageCustomerAddress = {
         }
 
         const query = gql`
+          #graphql
+
           mutation customerAddressDelete($customerId: ID!, $addressId: ID!) {
             customerAddressDelete(customerId: $customerId, addressId: $addressId) {
               deletedAddressId

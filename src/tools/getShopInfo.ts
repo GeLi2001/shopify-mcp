@@ -21,6 +21,8 @@ const getShopInfo = {
   execute: async (_input: GetShopInfoInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetShopInfo {
           shop {
             id

@@ -34,6 +34,8 @@ const getOrderTransactions = {
         : `gid://shopify/Order/${input.orderId}`;
 
       const query = gql`
+        #graphql
+
         query GetOrderTransactions($id: ID!) {
           order(id: $id) {
             id

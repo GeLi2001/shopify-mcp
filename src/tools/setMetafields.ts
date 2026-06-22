@@ -36,6 +36,8 @@ const setMetafields = {
   execute: async (input: SetMetafieldsInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
             metafields {

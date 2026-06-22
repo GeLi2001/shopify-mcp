@@ -34,6 +34,8 @@ const getLocations = {
   execute: async (input: GetLocationsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetLocations($first: Int!, $includeInactive: Boolean!) {
           locations(first: $first, includeInactive: $includeInactive) {
             edges {

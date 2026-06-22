@@ -28,6 +28,8 @@ const deleteProductVariants = {
       const { productId, variantIds } = input;
 
       const query = gql`
+        #graphql
+
         mutation productVariantsBulkDelete(
           $productId: ID!
           $variantsIds: [ID!]!

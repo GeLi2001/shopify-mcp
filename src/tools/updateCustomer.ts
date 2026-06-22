@@ -60,6 +60,8 @@ const updateCustomer = {
       const customerGid = `gid://shopify/Customer/${id}`;
 
       const query = gql`
+        #graphql
+
         mutation customerUpdate($input: CustomerInput!) {
           customerUpdate(input: $input) {
             customer {

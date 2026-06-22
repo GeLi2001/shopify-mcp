@@ -27,6 +27,8 @@ const manageTags = {
     try {
       if (input.action === "add") {
         const query = gql`
+          #graphql
+
           mutation tagsAdd($id: ID!, $tags: [String!]!) {
             tagsAdd(id: $id, tags: $tags) {
               node {
@@ -59,6 +61,8 @@ const manageTags = {
         };
       } else {
         const query = gql`
+          #graphql
+
           mutation tagsRemove($id: ID!, $tags: [String!]!) {
             tagsRemove(id: $id, tags: $tags) {
               node {

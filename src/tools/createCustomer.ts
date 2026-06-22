@@ -55,6 +55,8 @@ const createCustomer = {
   execute: async (input: CreateCustomerInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation customerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer {

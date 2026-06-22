@@ -145,6 +145,8 @@ const getCollectionById = {
 
       // Default: full query (backwards compatible)
       const query = gql`
+        #graphql
+
         query GetCollectionById($id: ID!, $productsFirst: Int!) {
           collection(id: $id) {
             id

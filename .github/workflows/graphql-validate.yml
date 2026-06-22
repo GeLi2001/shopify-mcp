@@ -1,0 +1,25 @@
+name: GraphQL Validate
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  validate-graphql:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate GraphQL
+        run: npm run validate:graphql

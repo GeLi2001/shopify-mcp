@@ -59,6 +59,8 @@ const updateProduct = {
       const { id, ...productFields } = input;
 
       const query = gql`
+        #graphql
+
         mutation productUpdate($product: ProductUpdateInput!) {
           productUpdate(product: $product) {
             product {

@@ -49,6 +49,8 @@ const createFulfillment = {
   execute: async (input: CreateFulfillmentInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation fulfillmentCreate($fulfillment: FulfillmentInput!) {
           fulfillmentCreate(fulfillment: $fulfillment) {
             fulfillment {

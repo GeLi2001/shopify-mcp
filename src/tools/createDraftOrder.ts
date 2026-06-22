@@ -63,6 +63,8 @@ const createDraftOrder = {
   execute: async (input: CreateDraftOrderInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation draftOrderCreate($input: DraftOrderInput!) {
           draftOrderCreate(input: $input) {
             draftOrder {

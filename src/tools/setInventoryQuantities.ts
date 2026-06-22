@@ -42,6 +42,8 @@ const setInventoryQuantities = {
   execute: async (input: SetInventoryQuantitiesInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
             inventoryAdjustmentGroup {

@@ -32,6 +32,8 @@ const getInventoryLevels = {
         : `gid://shopify/InventoryItem/${input.inventoryItemId}`;
 
       const query = gql`
+        #graphql
+
         query GetInventoryLevels($id: ID!) {
           inventoryItem(id: $id) {
             id

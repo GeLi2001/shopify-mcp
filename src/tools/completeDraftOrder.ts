@@ -25,6 +25,8 @@ const completeDraftOrder = {
   execute: async (input: CompleteDraftOrderInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation draftOrderComplete($id: ID!, $paymentGatewayId: ID) {
           draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId) {
             draftOrder {

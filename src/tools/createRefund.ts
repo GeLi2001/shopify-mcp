@@ -48,6 +48,8 @@ const createRefund = {
   execute: async (input: CreateRefundInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation refundCreate($input: RefundInput!) {
           refundCreate(input: $input) {
             refund {

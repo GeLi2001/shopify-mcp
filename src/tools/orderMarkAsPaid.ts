@@ -24,6 +24,8 @@ const orderMarkAsPaid = {
   execute: async (input: OrderMarkAsPaidInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
           orderMarkAsPaid(input: $input) {
             order {

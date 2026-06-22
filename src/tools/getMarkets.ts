@@ -29,6 +29,8 @@ const getMarkets = {
   execute: async (input: GetMarketsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetMarkets($first: Int!) {
           markets(first: $first) {
             edges {

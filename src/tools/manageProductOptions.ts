@@ -49,36 +49,6 @@ type ManageProductOptionsInput = z.infer<typeof ManageProductOptionsInputSchema>
 // Will be initialized in index.ts
 let shopifyClient: GraphQLClient;
 
-const PRODUCT_OPTIONS_FRAGMENT = gql`
-  fragment ProductOptionsFields on Product {
-    id
-    title
-    options {
-      id
-      name
-      position
-      optionValues {
-        id
-        name
-        hasVariants
-      }
-    }
-    variants(first: 20) {
-      edges {
-        node {
-          id
-          title
-          price
-          selectedOptions {
-            name
-            value
-          }
-        }
-      }
-    }
-  }
-`;
-
 type MutationResponse = {
   product: any;
   userErrors: Array<{ field: string; message: string; code?: string }>;
@@ -104,6 +74,8 @@ const manageProductOptions = {
         }
 
         const query = gql`
+          #graphql
+
           mutation productOptionsCreate(
             $productId: ID!
             $options: [OptionCreateInput!]!
@@ -124,7 +96,34 @@ const manageProductOptions = {
               }
             }
           }
-          ${PRODUCT_OPTIONS_FRAGMENT}
+
+          fragment ProductOptionsFields on Product {
+            id
+            title
+            options {
+              id
+              name
+              position
+              optionValues {
+                id
+                name
+                hasVariants
+              }
+            }
+            variants(first: 20) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  selectedOptions {
+                    name
+                    value
+                  }
+                }
+              }
+            }
+          }
         `;
 
         const options = input.options.map((o) => ({
@@ -152,6 +151,8 @@ const manageProductOptions = {
         }
 
         const query = gql`
+          #graphql
+
           mutation productOptionUpdate(
             $productId: ID!
             $option: OptionUpdateInput!
@@ -174,7 +175,34 @@ const manageProductOptions = {
               }
             }
           }
-          ${PRODUCT_OPTIONS_FRAGMENT}
+
+          fragment ProductOptionsFields on Product {
+            id
+            title
+            options {
+              id
+              name
+              position
+              optionValues {
+                id
+                name
+                hasVariants
+              }
+            }
+            variants(first: 20) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  selectedOptions {
+                    name
+                    value
+                  }
+                }
+              }
+            }
+          }
         `;
 
         const option: Record<string, any> = { id: input.optionId };
@@ -207,6 +235,8 @@ const manageProductOptions = {
         }
 
         const query = gql`
+          #graphql
+
           mutation productOptionsDelete(
             $productId: ID!
             $options: [ID!]!
@@ -225,7 +255,34 @@ const manageProductOptions = {
               }
             }
           }
-          ${PRODUCT_OPTIONS_FRAGMENT}
+
+          fragment ProductOptionsFields on Product {
+            id
+            title
+            options {
+              id
+              name
+              position
+              optionValues {
+                id
+                name
+                hasVariants
+              }
+            }
+            variants(first: 20) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  selectedOptions {
+                    name
+                    value
+                  }
+                }
+              }
+            }
+          }
         `;
 
         const data = (await shopifyClient.request(query, {

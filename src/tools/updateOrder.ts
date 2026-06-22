@@ -72,6 +72,8 @@ const updateOrder = {
       const { id, ...orderFields } = input;
 
       const query = gql`
+        #graphql
+
         mutation orderUpdate($input: OrderInput!) {
           orderUpdate(input: $input) {
             order {

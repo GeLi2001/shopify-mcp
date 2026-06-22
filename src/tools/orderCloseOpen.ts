@@ -26,6 +26,8 @@ const orderCloseOpen = {
     try {
       if (input.action === "close") {
         const query = gql`
+          #graphql
+
           mutation orderClose($input: OrderCloseInput!) {
             orderClose(input: $input) {
               order {
@@ -56,6 +58,8 @@ const orderCloseOpen = {
         return { order: data.orderClose.order };
       } else {
         const query = gql`
+          #graphql
+
           mutation orderOpen($input: OrderOpenInput!) {
             orderOpen(input: $input) {
               order {

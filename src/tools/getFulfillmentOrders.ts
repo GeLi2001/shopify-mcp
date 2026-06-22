@@ -34,6 +34,8 @@ const getFulfillmentOrders = {
         : `gid://shopify/Order/${input.orderId}`;
 
       const query = gql`
+        #graphql
+
         query GetFulfillmentOrders($id: ID!) {
           order(id: $id) {
             id

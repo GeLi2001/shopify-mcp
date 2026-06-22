@@ -32,6 +32,8 @@ const getInventoryItems = {
         : `gid://shopify/Product/${input.productId}`;
 
       const query = gql`
+        #graphql
+
         query GetInventoryItems($id: ID!) {
           product(id: $id) {
             id

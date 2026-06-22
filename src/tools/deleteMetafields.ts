@@ -33,6 +33,8 @@ const deleteMetafields = {
   execute: async (input: DeleteMetafieldsInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
           metafieldsDelete(metafields: $metafields) {
             deletedMetafields {

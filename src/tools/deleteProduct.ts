@@ -25,6 +25,8 @@ const deleteProduct = {
   execute: async (input: DeleteProductInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation productDelete($input: ProductDeleteInput!) {
           productDelete(input: $input) {
             deletedProductId

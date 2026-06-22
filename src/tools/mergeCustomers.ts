@@ -37,6 +37,8 @@ const mergeCustomers = {
   execute: async (input: MergeCustomersInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation customerMerge(
           $customerOneId: ID!
           $customerTwoId: ID!

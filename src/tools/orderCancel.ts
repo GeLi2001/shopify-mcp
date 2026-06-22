@@ -29,6 +29,8 @@ const orderCancel = {
   execute: async (input: OrderCancelInput) => {
     try {
       const query = gql`
+        #graphql
+
         mutation orderCancel(
           $orderId: ID!
           $reason: OrderCancelReason!
