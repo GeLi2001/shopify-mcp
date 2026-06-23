@@ -1,7 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
 import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
-import { defineProjection, countOnlyParam } from "../lib/projection.js";
+import { defineProjection, countOnlyParam, fetchCount } from "../lib/projection.js";
 
 /** Selectable fields for customers */
 const customerProjection = defineProjection({
@@ -56,15 +56,7 @@ const getCustomers = {
 
       // Count-only mode: return just the count
       if (countOnly) {
-        const countQuery = `
-          query GetCustomersCount($query: String) {
-            customersCount(query: $query) { count }
-          }
-        `;
-        const countData = (await shopifyClient.request(countQuery, { query: searchQuery })) as {
-          customersCount: { count: number };
-        };
-        return { count: countData.customersCount.count };
+        return fetchCount(shopifyClient, "customersCount", searchQuery);
       }
 
       const query = `

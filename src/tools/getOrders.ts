@@ -1,7 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
 import { handleToolError, edgesToNodes, type ShopifyConnection } from "../lib/toolUtils.js";
-import { defineProjection, countOnlyParam } from "../lib/projection.js";
+import { defineProjection, countOnlyParam, fetchCount } from "../lib/projection.js";
 import { formatOrderSummary } from "../lib/formatters.js";
 
 /** Selectable fields for orders */
@@ -71,15 +71,7 @@ const getOrders = {
 
       // Count-only mode: return just the count
       if (countOnly) {
-        const countQuery = `
-          query GetOrdersCount($query: String) {
-            ordersCount(query: $query) { count }
-          }
-        `;
-        const countData = (await shopifyClient.request(countQuery, { query: queryFilter })) as {
-          ordersCount: { count: number };
-        };
-        return { count: countData.ordersCount.count };
+        return fetchCount(shopifyClient, "ordersCount", queryFilter);
       }
 
       const query = `

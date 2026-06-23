@@ -1,3 +1,4 @@
+import type { GraphQLClient } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes } from "./toolUtils.js";
 
@@ -96,4 +97,25 @@ export function defineProjection(spec: Record<string, string>): Projection {
 /** Shared zod parameter for the `countOnly` argument. */
 export function countOnlyParam() {
   return z.boolean().optional().describe(COUNT_ONLY_GUIDANCE);
+}
+
+/**
+ * Run a Shopify *Count query (e.g. "productsCount", "ordersCount") and return { count }.
+ * Backs the `countOnly` mode of the list tools.
+ */
+export async function fetchCount(
+  client: GraphQLClient,
+  countField: string,
+  query?: string,
+): Promise<{ count: number }> {
+  const countQuery = `
+    query Count($query: String) {
+      ${countField}(query: $query) { count }
+    }
+  `;
+  const data = (await client.request(countQuery, { query })) as Record<
+    string,
+    { count: number }
+  >;
+  return { count: data[countField].count };
 }
