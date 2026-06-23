@@ -528,6 +528,9 @@ If you encounter issues, check Claude Desktop's MCP logs:
 tail -n 20 -f ~/Library/Logs/Claude/mcp*.log
 ```
 
+## Multi-Agent Deployments
+
+For agent identity verification and per-tool authorization patterns, see [docs/AGENT-IDENTITY.md](docs/AGENT-IDENTITY.md).
 ## License
 
 MIT
