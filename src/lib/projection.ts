@@ -70,9 +70,12 @@ export function defineProjection(spec: Record<string, string>): Projection {
     fieldsParam(opts: { noun?: string; extra?: string } = {}) {
       const noun = opts.noun ?? "resource";
       const enumNames = names as [string, ...string[]];
+      // Build the example from this projection's own fields so it is always a
+      // valid selection (not every resource has a "title" field).
+      const exampleField = names.find((n) => n !== "id") ?? "id";
       const description =
         SHARED_FIELDS_GUIDANCE +
-        `Example: ["id", "title"] returns only ${noun} GID and title. ` +
+        `Example: ["id", "${exampleField}"] returns only ${noun} GID and ${exampleField}. ` +
         (opts.extra ? `${opts.extra} ` : "") +
         `Available: ${names.join(", ")}`;
       return z.array(z.enum(enumNames)).optional().describe(description);
