@@ -4,7 +4,7 @@ import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 const ManageTagsInputSchema = z.object({
-  id: z.string().describe("GID of the resource (order, product, customer, draft order, or article)"),
+  id: z.string().describe("GID of the resource, e.g. gid://shopify/Product/123 or gid://shopify/Order/123"),
   tags: z.array(z.string()).min(1).describe("Tags to add or remove"),
   action: z.enum(["add", "remove"]).describe("Whether to add or remove the tags"),
 });

@@ -7,9 +7,9 @@ const OrderCancelInputSchema = z.object({
   orderId: z.string().describe("The order GID, e.g. gid://shopify/Order/123"),
   reason: z.enum(["CUSTOMER", "DECLINED", "FRAUD", "INVENTORY", "OTHER", "STAFF"]).describe("Reason for cancellation"),
   restock: z.boolean().describe("Whether to restock inventory"),
-  notifyCustomer: z.boolean().default(false).describe("Whether to notify the customer"),
+  notifyCustomer: z.boolean().default(false).describe("Whether to send cancellation notification to customer. IMPORTANT: Always confirm with the user before enabling — sends a real email/SMS to the customer."),
   staffNote: z.string().optional().describe("Internal note (not visible to customer)"),
-  refund: z.boolean().optional().describe("Whether to refund to the original payment method"),
+  refund: z.boolean().optional().describe("Whether to refund the full amount to the original payment method. For partial refunds on specific line items, use refund-create instead."),
 });
 
 type OrderCancelInput = z.infer<typeof OrderCancelInputSchema>;

@@ -17,8 +17,13 @@ MCP Server for Shopify API, enabling interaction with store data through GraphQL
 - **Customer Management**: Full CRUD, merge, and address management (8 tools)
 - **Order Management**: Smart lookup, cancel, close/open, mark as paid, fulfillment, refunds (10 tools)
 - **Metafield Management**: Get, set, and delete metafields on any resource (3 tools)
-- **Inventory Management**: Set absolute inventory quantities at locations (1 tool)
-- **Tag Management**: Add/remove tags on any taggable resource (1 tool)
+- **Collection Management**: List collections and get collection details with products (2 tools)
+- **Configuration & Discovery**: Shop info, metafield definitions, locations, markets (5 tools)
+- **Inventory & Pricing**: Set quantities, view levels/items, price lists, detailed variants (5 tools)
+- **Tag Management**: Add/remove tags on any taggable resource, including bulk operations (2 tools)
+- **Enhanced Order Tools**: Transactions, fulfillment orders, refund details (3 tools)
+- **Field Selection**: All GET tools support a `fields` parameter to fetch only the data you need
+- **Count-Only Mode**: List tools support `countOnly` to get result counts without fetching data
 - **Pagination & Sorting**: Cursor-based pagination and sort keys on all list queries
 - **Advanced Filtering**: Pass-through Shopify query syntax for all list endpoints
 - **GraphQL Integration**: Direct integration with Shopify's GraphQL Admin API (2026-01)
@@ -164,15 +169,17 @@ shopify-mcp --clientId=<ID> --clientSecret=<SECRET> --domain=<YOUR_SHOP>.myshopi
 
 **⚠️ Important:** If you see errors about "SHOPIFY_ACCESS_TOKEN environment variable is required" when using command-line arguments, you might have a different package installed. Make sure you're using `shopify-mcp`, not `shopify-mcp-server`.
 
-## Available Tools (31)
+## Available Tools (45)
 
-### Pagination, Sorting & Filtering
+### Shared Capabilities
 
-All list query tools (`get-products`, `get-customers`, `get-orders`, `get-customer-orders`) support:
+All list query tools (`get-products`, `get-customers`, `get-orders`, `get-customer-orders`, `get-collections`) support:
 
 - **Cursor-based pagination**: `after` / `before` (cursor strings), with `pageInfo` in the response (`hasNextPage`, `hasPreviousPage`, `startCursor`, `endCursor`)
 - **Sorting**: `sortKey` (enum specific to each resource) and `reverse` (boolean)
 - **Advanced filtering**: `query` or `searchQuery` parameter accepting [Shopify query syntax](https://shopify.dev/docs/api/usage/search-syntax)
+- **Field selection**: `fields` parameter to fetch only specific fields, reducing response size
+- **Count-only mode**: `countOnly` parameter returns `{ count: N }` without fetching any resource data — useful for sizing queries before paginating
 
 ### Product Management (8 tools)
 
@@ -490,15 +497,63 @@ All list query tools (`get-products`, `get-customers`, `get-orders`, `get-custom
      - `name` (string, required): `"available"` or `"on_hand"`
      - `quantities` (array, required): Items with `inventoryItemId`, `locationId`, `quantity`
 
-### Tag Management (1 tool)
+### Tag Management (2 tools)
 
 1. **`manage-tags`**
 
    - Add or remove tags on any taggable resource (orders, products, customers, draft orders, articles)
    - Inputs:
-     - `id` (string, required): GID of the resource
+     - `id` (string, required): GID of the resource (e.g. `gid://shopify/Product/123`)
      - `tags` (array of strings, required): Tags to add or remove
      - `action` (string, required): `"add"` or `"remove"`
+
+2. **`manage-tags-bulk`**
+
+   - Bulk add or remove tags on up to 100 resources in a single call (runs mutations in parallel)
+   - Inputs:
+     - `ids` (array of strings, required): Resource GIDs (up to 100). For larger sets, call multiple times
+     - `tags` (array of strings, required): Tags to add or remove
+     - `action` (string, required): `"add"` or `"remove"`
+
+### Collection Management (2 tools)
+
+1. **`get-collections`**
+
+   - List collections with search, pagination, and sorting
+   - Inputs:
+     - `query` (string, optional): Shopify query syntax
+     - `limit` (number, default: 10): Maximum collections to return
+     - `sortKey`, `reverse`, `after`/`before`: Standard pagination and sorting
+     - `fields`, `countOnly`: Standard field selection and count-only mode
+
+2. **`get-collection-by-id`**
+
+   - Get a single collection with full details including products, rules (smart collections), SEO, and image
+   - Inputs:
+     - `collectionId` (string, required): Collection ID (e.g. `gid://shopify/Collection/123` or just `123`)
+     - `productsFirst` (number, default: 25): Number of products to include (0 to skip)
+     - `fields` (array, optional): Collection-level fields to fetch (`id`, `title`, `handle`, `descriptionHtml`, `sortOrder`, `templateSuffix`, `updatedAt`, `productsCount`, `ruleSet`, `image`, `seo`)
+
+### Configuration & Discovery (4 tools)
+
+1. **`get-shop-info`** — Get shop details (name, domain, plan, currency, timezone, etc.)
+2. **`get-metafield-definitions`** — List metafield definitions for any owner type with pagination
+3. **`get-locations`** — List all active locations with addresses and fulfillment service info
+4. **`get-markets`** — List all markets with regions, currencies, and domains
+
+### Enhanced Order & Fulfillment (3 tools)
+
+1. **`get-order-transactions`** — Get payment transactions for an order (gateway, status, amounts, card details)
+2. **`get-fulfillment-orders`** — Get fulfillment orders for an order (line items, assigned location, status)
+3. **`get-order-refund-details`** — Get refund history for an order (line items, amounts, restocking)
+
+### Inventory & Pricing (4 tools)
+
+1. **`inventory-set-quantities`** — Set absolute inventory quantities at locations with validated reason codes
+2. **`get-inventory-levels`** — Get inventory levels for an item across locations
+3. **`get-inventory-items`** — Get inventory items for a product (cost, tracking, country of origin)
+4. **`get-price-lists`** — List price lists with fixed prices and quantity rules
+5. **`get-product-variants-detailed`** — Get detailed variant info (inventory, pricing, images, metafields)
 
 ### Order Query Filter Reference
 

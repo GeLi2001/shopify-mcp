@@ -7,7 +7,7 @@ const CreateFulfillmentInputSchema = z.object({
   lineItemsByFulfillmentOrder: z
     .array(
       z.object({
-        fulfillmentOrderId: z.string().describe("The fulfillment order GID"),
+        fulfillmentOrderId: z.string().describe("The fulfillment order GID. Use get-fulfillment-orders to look these up."),
         fulfillmentOrderLineItems: z
           .array(
             z.object({
@@ -29,7 +29,7 @@ const CreateFulfillmentInputSchema = z.object({
     })
     .optional()
     .describe("Tracking information for the shipment"),
-  notifyCustomer: z.boolean().default(false).describe("Whether to send shipping notification to customer"),
+  notifyCustomer: z.boolean().default(false).describe("Whether to send shipping notification to customer. IMPORTANT: Always confirm with the user before enabling — sends a real email/SMS to the customer."),
 });
 
 type CreateFulfillmentInput = z.infer<typeof CreateFulfillmentInputSchema>;
@@ -39,7 +39,7 @@ let shopifyClient: GraphQLClient;
 const createFulfillment = {
   name: "create-fulfillment",
   description:
-    "Create a fulfillment (mark items as shipped) with optional tracking info and customer notification.",
+    "Create a fulfillment (mark items as shipped) with optional tracking info. IMPORTANT: Call get-fulfillment-orders first to obtain the fulfillmentOrderId and line item GIDs.",
   schema: CreateFulfillmentInputSchema,
 
   initialize(client: GraphQLClient) {

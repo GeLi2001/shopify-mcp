@@ -4,7 +4,13 @@ import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 const SetInventoryQuantitiesInputSchema = z.object({
-  reason: z.string().describe("Reason for the quantity change (e.g. 'correction', 'cycle_count_available', 'received')"),
+  reason: z.enum([
+    "correction", "cycle_count_available", "damaged",
+    "movement_created", "movement_updated", "movement_received", "movement_canceled",
+    "other", "promotion", "quality_control", "received",
+    "reservation_created", "reservation_deleted", "reservation_updated",
+    "restock", "safety_stock", "shrinkage"
+  ]).describe("Reason for the quantity change"),
   name: z.enum(["available", "on_hand"]).describe("Which quantity to set: 'available' or 'on_hand'"),
   quantities: z
     .array(

@@ -7,7 +7,7 @@ const DeleteMetafieldsInputSchema = z.object({
   metafields: z
     .array(
       z.object({
-        ownerId: z.string().describe("GID of the resource that owns the metafield"),
+        ownerId: z.string().describe("GID of the resource that owns the metafield, e.g. gid://shopify/Product/123"),
         namespace: z.string().describe("Metafield namespace"),
         key: z.string().describe("Metafield key"),
       })

@@ -5,7 +5,7 @@ import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for deleting a customer
 const DeleteCustomerInputSchema = z.object({
-  id: z.string().regex(/^\d+$/, "Customer ID must be numeric")
+  id: z.string().regex(/^\d+$/, "Customer ID must be numeric").describe("Numeric customer ID (e.g. 7832529321). Do not pass a full GID.")
 });
 
 type DeleteCustomerInput = z.infer<typeof DeleteCustomerInputSchema>;

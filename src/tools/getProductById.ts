@@ -1,11 +1,34 @@
 import type { GraphQLClient } from "graphql-request";
-import { gql } from "graphql-request";
 import { z } from "zod";
 import { handleToolError } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
+
+/** Selectable fields for product-by-id */
+const productByIdProjection = defineProjection({
+  id: "id",
+  title: "title",
+  description: "description",
+  descriptionHtml: "descriptionHtml",
+  handle: "handle",
+  status: "status",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+  totalInventory: "totalInventory",
+  priceRange: "priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }",
+  media: "media(first: 5) { edges { node { ... on MediaImage { id image { url altText width height } } } } }",
+  variants: "variants(first: 20) { edges { node { id title price inventoryQuantity sku selectedOptions { name value } } } }",
+  collections: "collections(first: 5) { edges { node { id title } } }",
+  seo: "seo { title description }",
+  options: "options { id name position optionValues { id name } }",
+  tags: "tags",
+  vendor: "vendor",
+  productType: "productType",
+});
 
 // Input schema for getProductById
 const GetProductByIdInputSchema = z.object({
-  productId: z.string().min(1)
+  productId: z.string().min(1).describe("The product ID (e.g. gid://shopify/Product/123 or just 123)"),
+  fields: productByIdProjection.fieldsParam({ noun: "product" }),
 });
 
 type GetProductByIdInput = z.infer<typeof GetProductByIdInputSchema>;
@@ -15,7 +38,7 @@ let shopifyClient: GraphQLClient;
 
 const getProductById = {
   name: "get-product-by-id",
-  description: "Get a specific product by ID",
+  description: "Get a specific product by ID. Supports field selection via 'fields' to reduce response size.",
   schema: GetProductByIdInputSchema,
 
   // Add initialize method to set up the GraphQL client
@@ -25,86 +48,12 @@ const getProductById = {
 
   execute: async (input: GetProductByIdInput) => {
     try {
-      const { productId } = input;
+      const { productId, fields } = input;
 
-      const query = gql`
-        #graphql
-
+      const query = `
         query GetProductById($id: ID!) {
           product(id: $id) {
-            id
-            title
-            description
-            handle
-            status
-            createdAt
-            updatedAt
-            totalInventory
-            priceRangeV2 {
-              minVariantPrice {
-                amount
-                currencyCode
-              }
-              maxVariantPrice {
-                amount
-                currencyCode
-              }
-            }
-            media(first: 5) {
-              edges {
-                node {
-                  ... on MediaImage {
-                    id
-                    image {
-                      url
-                      altText
-                      width
-                      height
-                    }
-                  }
-                }
-              }
-            }
-            variants(first: 20) {
-              edges {
-                node {
-                  id
-                  title
-                  price
-                  inventoryQuantity
-                  sku
-                  selectedOptions {
-                    name
-                    value
-                  }
-                }
-              }
-            }
-            collections(first: 5) {
-              edges {
-                node {
-                  id
-                  title
-                }
-              }
-            }
-            tags
-            vendor
-            productType
-            descriptionHtml
-            seo {
-              title
-              description
-            }
-            options {
-              id
-              name
-              position
-              optionValues {
-                id
-                name
-              }
-            }
+            ${productByIdProjection.selection(fields)}
           }
         }
       `;
@@ -121,9 +70,15 @@ const getProductById = {
         throw new Error(`Product with ID ${productId} not found`);
       }
 
-      // Format product data
       const product = data.product;
 
+      // When custom fields are specified, return raw nodes (run edgesToNodes on connection fields)
+      if (fields) {
+        const result: any = productByIdProjection.normalize(product);
+        return { product: result };
+      }
+
+      // Default: full formatting
       // Format variants
       const variants = product.variants.edges.map((variantEdge: any) => ({
         id: variantEdge.node.id,

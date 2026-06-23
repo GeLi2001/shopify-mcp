@@ -4,15 +4,15 @@ import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 const MergeCustomersInputSchema = z.object({
-  customerOneId: z.string().describe("GID of the first customer"),
-  customerTwoId: z.string().describe("GID of the second customer"),
+  customerOneId: z.string().describe("GID of the first customer, e.g. gid://shopify/Customer/123"),
+  customerTwoId: z.string().describe("GID of the second customer, e.g. gid://shopify/Customer/456"),
   overrideFields: z
     .object({
-      customerIdOfFirstNameToKeep: z.string().optional().describe("Customer GID whose first name to keep"),
-      customerIdOfLastNameToKeep: z.string().optional().describe("Customer GID whose last name to keep"),
-      customerIdOfEmailToKeep: z.string().optional().describe("Customer GID whose email to keep"),
-      customerIdOfPhoneNumberToKeep: z.string().optional().describe("Customer GID whose phone to keep"),
-      customerIdOfDefaultAddressToKeep: z.string().optional().describe("Customer GID whose default address to keep"),
+      customerIdOfFirstNameToKeep: z.string().optional().describe("Customer GID whose first name to keep, e.g. gid://shopify/Customer/123"),
+      customerIdOfLastNameToKeep: z.string().optional().describe("Customer GID whose last name to keep, e.g. gid://shopify/Customer/123"),
+      customerIdOfEmailToKeep: z.string().optional().describe("Customer GID whose email to keep, e.g. gid://shopify/Customer/123"),
+      customerIdOfPhoneNumberToKeep: z.string().optional().describe("Customer GID whose phone to keep, e.g. gid://shopify/Customer/123"),
+      customerIdOfDefaultAddressToKeep: z.string().optional().describe("Customer GID whose default address to keep, e.g. gid://shopify/Customer/123"),
       note: z.string().optional().describe("Note to keep on the merged customer"),
       tags: z.array(z.string()).optional().describe("Tags to keep on the merged customer"),
     })

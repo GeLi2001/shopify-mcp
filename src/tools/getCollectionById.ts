@@ -2,6 +2,22 @@ import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { defineProjection } from "../lib/projection.js";
+
+/** Selectable fields for collection-by-id */
+const collectionByIdProjection = defineProjection({
+  id: "id",
+  title: "title",
+  handle: "handle",
+  descriptionHtml: "descriptionHtml",
+  sortOrder: "sortOrder",
+  templateSuffix: "templateSuffix",
+  updatedAt: "updatedAt",
+  productsCount: "productsCount { count }",
+  ruleSet: "ruleSet { appliedDisjunctively rules { column relation condition } }",
+  image: "image { url altText width height }",
+  seo: "seo { title description }",
+});
 
 const GetCollectionByIdInputSchema = z.object({
   collectionId: z
@@ -19,6 +35,10 @@ const GetCollectionByIdInputSchema = z.object({
     .describe(
       "Number of products to include (default 25, max 100, 0 to skip products)",
     ),
+  fields: collectionByIdProjection.fieldsParam({
+    noun: "collection",
+    extra: "Products are controlled separately via 'productsFirst'.",
+  }),
 });
 type GetCollectionByIdInput = z.infer<typeof GetCollectionByIdInputSchema>;
 
@@ -27,7 +47,7 @@ let shopifyClient: GraphQLClient;
 const getCollectionById = {
   name: "get-collection-by-id",
   description:
-    "Get a single collection with full details including products (paginated), rules for smart collections, SEO, and image",
+    "Get a single collection with full details including products (paginated), rules for smart collections, SEO, and image. Supports field selection via 'fields' to reduce response size.",
   schema: GetCollectionByIdInputSchema,
 
   initialize(client: GraphQLClient) {
@@ -40,7 +60,82 @@ const getCollectionById = {
         ? input.collectionId
         : `gid://shopify/Collection/${input.collectionId}`;
       const productsFirst = input.productsFirst ?? 25;
+      const { fields } = input;
 
+      // When fields is set, use field selection for collection-level fields
+      if (fields) {
+        const fieldSelection = collectionByIdProjection.selection(fields);
+
+        // Append products block separately if productsFirst > 0
+        const productsBlock = productsFirst > 0 ? `
+            products(first: $productsFirst) {
+              edges {
+                node {
+                  id
+                  title
+                  handle
+                  status
+                  vendor
+                  productType
+                  totalInventory
+                  featuredMedia {
+                    preview {
+                      image {
+                        url
+                        altText
+                      }
+                    }
+                  }
+                  priceRangeV2 {
+                    minVariantPrice {
+                      amount
+                      currencyCode
+                    }
+                    maxVariantPrice {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }` : "";
+
+        const query = `
+          query GetCollectionById($id: ID!${productsFirst > 0 ? ", $productsFirst: Int!" : ""}) {
+            collection(id: $id) {
+              ${fieldSelection}
+              ${productsBlock}
+            }
+          }
+        `;
+
+        const variables: Record<string, any> = { id: collectionId };
+        if (productsFirst > 0) {
+          variables.productsFirst = productsFirst;
+        }
+
+        const data: any = await shopifyClient.request(query, variables);
+
+        if (!data.collection) {
+          throw new Error(`Collection not found: ${collectionId}`);
+        }
+
+        const result: any = { ...data.collection };
+        if (result.products) {
+          result.products = {
+            items: edgesToNodes(result.products),
+            pageInfo: result.products.pageInfo,
+          };
+        }
+
+        return { collection: result };
+      }
+
+      // Default: full query (backwards compatible)
       const query = gql`
         #graphql
 

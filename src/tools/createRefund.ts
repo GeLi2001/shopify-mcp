@@ -18,7 +18,7 @@ const CreateRefundInputSchema = z.object({
       })
     )
     .optional()
-    .describe("Line items to refund"),
+    .describe("Line items to refund with quantities and restock type. If omitted, you must provide 'shipping' for a shipping-only refund. Omitting both refundLineItems and shipping will result in a zero-amount refund (note-only)."),
   shipping: z
     .object({
       amount: z.string().optional().describe("Shipping refund amount"),
@@ -27,7 +27,7 @@ const CreateRefundInputSchema = z.object({
     .optional()
     .describe("Shipping cost refund"),
   note: z.string().optional().describe("Note attached to the refund"),
-  notify: z.boolean().optional().describe("Whether to send refund notification to customer"),
+  notify: z.boolean().optional().describe("Whether to send refund notification to customer. IMPORTANT: Always confirm with the user before enabling — sends a real email/SMS to the customer. Defaults to no notification if omitted."),
   currency: z.string().optional().describe("Currency code if different from shop currency (presentment currency)"),
 });
 

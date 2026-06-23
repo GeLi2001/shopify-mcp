@@ -23,14 +23,18 @@ const UpdateProductInputSchema = z.object({
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
-        value: z.string(),
-        type: z.string().optional(),
+        id: z.string().optional().describe("Metafield GID to update an existing metafield. Omit to create/upsert by namespace+key."),
+        namespace: z.string().optional().describe("Metafield namespace (required when creating without id)"),
+        key: z.string().optional().describe("Metafield key (required when creating without id)"),
+        value: z.string().describe("The value to set"),
+        type: z.string().optional().describe("Metafield type (e.g. 'single_line_text_field'). Required when creating a new metafield without a definition."),
       })
     )
-    .optional(),
+    .optional()
+    .describe(
+      "Metafields to create or update inline. Pass 'id' to update existing, or 'namespace'+'key' to upsert. " +
+      "For standalone metafield operations, prefer the set-metafields tool instead."
+    ),
   collectionsToJoin: z.array(z.string()).optional().describe("Collection GIDs to add the product to"),
   collectionsToLeave: z.array(z.string()).optional().describe("Collection GIDs to remove the product from"),
   redirectNewHandle: z.boolean().optional().describe("If true, old handle redirects to new handle"),

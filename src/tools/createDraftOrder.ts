@@ -25,7 +25,7 @@ const CreateDraftOrderInputSchema = z.object({
     )
     .min(1)
     .describe("Line items (max 499). Use variantId for existing products or title+price for custom items."),
-  customerId: z.string().optional().describe("Customer GID to associate with the draft order"),
+  customerId: z.string().optional().describe("Customer GID to associate with the draft order, e.g. gid://shopify/Customer/123"),
   email: z.string().optional().describe("Customer email"),
   phone: z.string().optional().describe("Customer phone"),
   note: z.string().optional().describe("Note for the draft order"),

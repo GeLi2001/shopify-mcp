@@ -9,7 +9,7 @@ let shopifyClient: GraphQLClient;
 // Input schema for updateOrder
 // Based on https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderupdate
 const UpdateOrderInputSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).describe("Order GID (e.g. gid://shopify/Order/123). Use get-order-by-id to look up by order number first."),
   tags: z.array(z.string()).optional(),
   email: z.string().email().optional(),
   note: z.string().optional(),
@@ -24,14 +24,18 @@ const UpdateOrderInputSchema = z.object({
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
-        value: z.string(),
-        type: z.string().optional()
+        id: z.string().optional().describe("Metafield GID to update an existing metafield. Omit to create/upsert by namespace+key."),
+        namespace: z.string().optional().describe("Metafield namespace (required when creating without id)"),
+        key: z.string().optional().describe("Metafield key (required when creating without id)"),
+        value: z.string().describe("The value to set"),
+        type: z.string().optional().describe("Metafield type (e.g. 'single_line_text_field'). Required when creating a new metafield without a definition.")
       })
     )
-    .optional(),
+    .optional()
+    .describe(
+      "Metafields to create or update inline. Pass 'id' to update existing, or 'namespace'+'key' to upsert. " +
+      "For standalone metafield operations, prefer the set-metafields tool instead."
+    ),
   phone: z.string().optional(),
   poNumber: z.string().optional(),
   shippingAddress: z

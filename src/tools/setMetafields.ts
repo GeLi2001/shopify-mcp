@@ -7,7 +7,7 @@ const SetMetafieldsInputSchema = z.object({
   metafields: z
     .array(
       z.object({
-        ownerId: z.string().describe("GID of the resource (product, order, customer, variant, etc.)"),
+        ownerId: z.string().describe("GID of the resource, e.g. gid://shopify/Product/123 or gid://shopify/Customer/123"),
         namespace: z.string().optional().describe("Metafield namespace. If omitted, app-reserved namespace is used."),
         key: z.string().describe("Unique identifier within its namespace (2-64 chars)"),
         value: z.string().describe("The value to set (always stored as string)"),
