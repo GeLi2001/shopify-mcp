@@ -162,9 +162,14 @@ shopify-mcp --clientId=<ID> --clientSecret=<SECRET> --domain=<YOUR_SHOP>.myshopi
 
 - `--apiVersion`: Specify the Shopify API version (default: `2026-01`). Can also be set via `SHOPIFY_API_VERSION` environment variable.
 
+#### Attribution environment variables (crumbs-attribution tool)
+
+- `CRUMBS_LEDGER_URL` (required for `crumbs-attribution`): base URL of a Crumbs attribution ledger (e.g. the public demo at `https://ledger.exo-trust.com`). There is deliberately no default — a receipt that cannot be verified is worse than none. When unset the tool returns a clear configuration error.
+- `CRUMBS_MERCHANT_ID` (optional): default merchant id (`mcr_`/`m_…`) used when the tool is called without `merchant_id`.
+
 **⚠️ Important:** If you see errors about "SHOPIFY_ACCESS_TOKEN environment variable is required" when using command-line arguments, you might have a different package installed. Make sure you're using `shopify-mcp`, not `shopify-mcp-server`.
 
-## Available Tools (31)
+## Available Tools (32)
 
 ### Pagination, Sorting & Filtering
 
@@ -499,6 +504,18 @@ All list query tools (`get-products`, `get-customers`, `get-orders`, `get-custom
      - `id` (string, required): GID of the resource
      - `tags` (array of strings, required): Tags to add or remove
      - `action` (string, required): `"add"` or `"remove"`
+
+### Attribution & compliance (1 tool)
+
+1. **`crumbs-attribution`**
+
+   - Issue a consent-gated Crumbs attribution receipt (signed journey record) for an agent-assisted order or conversion on the configured Crumbs ledger, and return the x402 `PAYMENT-RESPONSE` referral field to attach to downstream paid agent calls. Needs no Shopify credentials — attribution is recorded ledger-side.
+   - Inputs:
+     - `merchant_id` (string, optional): ledger merchant id; defaults to `CRUMBS_MERCHANT_ID`
+     - `order_id` (string, optional): Shopify order id/name recorded as the consent reference tying the receipt to the order
+     - `agent_did` (string, optional): `did:pkh` agent identifier — the same did across merchants anchors the same agent id (cross-merchant stitching)
+     - `surface` (`"chat" | "api" | "browser"`, optional, default `"chat"`): interaction surface recorded on the receipt
+   - Requires `CRUMBS_LEDGER_URL`; fails with a clear error when unset or when the ledger rejects the request (never fabricates a receipt).
 
 ### Order Query Filter Reference
 

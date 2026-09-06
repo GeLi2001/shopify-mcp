@@ -60,6 +60,9 @@ import { getInventoryItems } from "./getInventoryItems.js";
 import { getPriceLists } from "./getPriceLists.js";
 import { getProductVariantsDetailed } from "./getProductVariantsDetailed.js";
 
+// Attribution & compliance (1)
+import { crumbsAttribution } from "./crumbsAttribution.js";
+
 export const tools: ShopifyTool[] = [
   // Products (8)
   getProducts,
@@ -113,4 +116,6 @@ export const tools: ShopifyTool[] = [
   getInventoryItems,
   getPriceLists,
   getProductVariantsDetailed,
+  // Attribution & compliance (1)
+  crumbsAttribution,
 ];
